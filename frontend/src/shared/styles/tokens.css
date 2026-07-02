@@ -1,0 +1,121 @@
+/* ============================================================
+   SPI Messenger — дизайн-токены.
+   Цвета сняты с макетов design/mockups (тёмная тема) и
+   фирменного стиля spi-2015.ru (светлая: белый/оранжевый/тёмно-синий).
+   Тема переключается атрибутом data-theme на <html>.
+   ============================================================ */
+
+:root {
+  /* Фирменные константы (не зависят от темы) */
+  --spi-orange: #e87b2d;
+  --spi-orange-hover: #f08a40;
+  --spi-navy: #10233f;
+  --spi-white: #ffffff;
+
+  /* Геометрия */
+  --radius-bubble: 16px;
+  --radius-pill: 999px;
+  --radius-card: 12px;
+  --radius-avatar: 50%;
+
+  /* Типографика */
+  --font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-size-base: 15px;
+  --font-size-sm: 13px;
+  --font-size-xs: 11px;
+  --font-size-lg: 17px;
+  --font-size-title: 20px;
+
+  /* Отступы */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Safe-area iPhone */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Слои */
+  --z-modal: 100;
+  --z-toast: 110;
+  --z-lightbox: 90;
+}
+
+/* --- Тёмная тема (эталон — макеты) --- */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #181b1f; /* основной фон списка/чата */
+  --color-bg-secondary: #1f2328; /* панели, шапки */
+  --color-bg-elevated: #2a2f35; /* инпуты, всплывающие карточки */
+  --color-bg-hover: #23272c;
+
+  --color-text: #ffffff;
+  --color-text-secondary: #9ba3ab;
+  --color-text-tertiary: #6d757d;
+
+  --color-bubble-in: #3a4046; /* входящий пузырь */
+  --color-bubble-in-text: #ffffff;
+  --color-bubble-out: #c9cdd1; /* исходящий пузырь (светлый, как на макете) */
+  --color-bubble-out-text: #16191c;
+
+  --color-selected: #8fa5b5; /* выбранный чат в списке */
+  --color-selected-text: #16191c;
+
+  --color-accent: var(--spi-orange);
+  --color-accent-text: #ffffff;
+  --color-danger: #e5484d;
+  --color-online: #4cc35e;
+
+  --color-border: #2a2f35;
+  --color-date-separator-bg: #202428;
+  --color-scrollbar: #3a4046;
+
+  --color-input-bg: #2a2f35;
+  --color-input-placeholder: #8a929a;
+
+  --shadow-card: 0 4px 16px rgb(0 0 0 / 40%);
+}
+
+/* --- Светлая тема (белый / оранжевый / тёмно-синий, spi-2015.ru) --- */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #ffffff;
+  --color-bg-secondary: #f5f6f8;
+  --color-bg-elevated: #eef0f3;
+  --color-bg-hover: #f0f2f5;
+
+  --color-text: #10233f;
+  --color-text-secondary: #5f6b7a;
+  --color-text-tertiary: #8a94a1;
+
+  --color-bubble-in: #eef0f3;
+  --color-bubble-in-text: #10233f;
+  --color-bubble-out: #10233f;
+  --color-bubble-out-text: #ffffff;
+
+  --color-selected: #ffe7d2;
+  --color-selected-text: #10233f;
+
+  --color-accent: var(--spi-orange);
+  --color-accent-text: #ffffff;
+  --color-danger: #d93036;
+  --color-online: #2fa84f;
+
+  --color-border: #e3e7ec;
+  --color-date-separator-bg: #f0f2f5;
+  --color-scrollbar: #c9cdd1;
+
+  --color-input-bg: #f0f2f5;
+  --color-input-placeholder: #8a94a1;
+
+  --shadow-card: 0 4px 16px rgb(16 35 63 / 12%);
+}

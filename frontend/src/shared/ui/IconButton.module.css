@@ -1,0 +1,37 @@
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.iconButton:hover {
+  background: var(--color-bg-hover);
+}
+
+.plain {
+  background: transparent;
+}
+
+.filled {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+}
+.filled:hover {
+  background: var(--color-bg-hover);
+}
+
+.accent {
+  background: var(--color-selected);
+  color: var(--color-selected-text);
+}
+.accent:hover {
+  background: var(--color-selected);
+  opacity: 0.9;
+}

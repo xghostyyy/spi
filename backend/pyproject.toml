@@ -1,0 +1,42 @@
+[project]
+name = "spi-messenger-backend"
+version = "0.1.0"
+description = "SPI Messenger — FastAPI backend"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",      # pycodestyle / pyflakes
+  "I",                # isort
+  "UP",               # pyupgrade
+  "B",                # bugbear
+  "ASYNC",            # async pitfalls
+  "S",                # bandit (security)
+  "C4",               # comprehensions
+  "RUF",
+]
+ignore = [
+  "S101",             # assert — используется в тестах
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["app"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pywebpush", "slowapi.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
