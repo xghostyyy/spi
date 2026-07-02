@@ -1,0 +1,38 @@
+# --- Secrets: never commit ---
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/dev-dist/
+frontend/coverage/
+*.tsbuildinfo
+
+# --- Python / backend ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+backend/htmlcov/
+backend/.coverage
+
+# --- Uploads / data ---
+data/
+uploads/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Claude local ---
+.claude/settings.local.json
