@@ -1,6 +1,6 @@
 # SPI Messenger — Установка, подключение БД и деплой (v1.0)
 
-Инструкция покрывает три сценария: локальная разработка, демо-деплой (Vercel + Render + Supabase) и продакшен на собственном VPS. БД везде — PostgreSQL 16, поэтому демо и прод не отличаются ничем, кроме адресов в `.env`.
+Инструкция покрывает три сценария: локальная разработка, демо-деплой (Vercel + Render + Neon Postgres) и продакшен на собственном VPS. БД везде — PostgreSQL 16, поэтому демо и прод не отличаются ничем, кроме адресов в `.env`.
 
 ---
 
@@ -10,18 +10,18 @@
 
 ```env
 # --- База данных (PostgreSQL 16 везде) ---
-# Демо (Supabase):
-DATABASE_URL=postgresql+asyncpg://postgres:PASSWORD@db.xxxx.supabase.co:5432/postgres
+# Демо (Neon, через Vercel Storage):
+DATABASE_URL=postgresql+asyncpg://user:PASSWORD@ep-xxxx.neon.tech:5432/neondb
 # Прод (контейнер на VPS):
 # DATABASE_URL=postgresql+asyncpg://spi_app:PASSWORD@postgres:5432/spi_messenger
 
 # --- Безопасность ---
-JWT_SECRET=            # openssl rand -hex 32
+JWT_SECRET=            # openssl rand -hex 32 (на Render — generateValue в render.yaml)
 JWT_ACCESS_TTL_MIN=15
 JWT_REFRESH_TTL_DAYS=30
 
 # --- Файловое хранилище ---
-STORAGE_BACKEND=supabase          # supabase | local | s3
+STORAGE_BACKEND=local             # local | supabase (supabase — ещё не реализован, см. 3.4) | s3
 SUPABASE_URL=
 SUPABASE_SERVICE_KEY=             # только на сервере, никогда во фронт!
 STORAGE_LOCAL_PATH=/data/uploads  # для STORAGE_BACKEND=local
@@ -82,44 +82,64 @@ npm run dev                                         # http://localhost:5173
 
 ---
 
-## 3. Демо-деплой (Vercel + Render + Postgres)
+## 3. Демо-деплой (Vercel + Render + Neon Postgres)
 
-> См. `docs/DECISIONS.md`, ADR-007: по уточнению заказчика БД для теста поднимается через
-> Vercel Marketplace (Neon Postgres) во вкладке **Storage** проекта на Vercel — это и
-> заменяет отдельный аккаунт Supabase для БД (Storage-файлы пока остаются на
-> `STORAGE_BACKEND=local` на стороне API, либо тоже через Supabase — см. 3.1).
+> См. `docs/DECISIONS.md`, ADR-007: по запросу заказчика БД для теста — Neon Postgres,
+> подключаемый через вкладку **Storage** проекта на Vercel. API по-прежнему не может
+> жить на самом Vercel (serverless-функции не держат постоянные WS-соединения, см.
+> `docs/02-ARCHITECTURE.md` §1) — он разворачивается на Render, подключаясь к той же
+> Neon БД. В репозитории уже есть `render.yaml` (Render Blueprint) и `frontend/vercel.json`
+> (SPA-рероутинг для client-side маршрутов React Router), которые сводят ручную часть
+> ниже к вводу нескольких значений в веб-интерфейсах — сами аккаунты Vercel/Render/Neon
+> и клики в их дашбордах должен сделать владелец проекта.
 
-### 3.0 Neon Postgres через Vercel (БД)
-1. В проекте на https://vercel.com → **Storage** → **Create Database** → **Neon** (или
-   **Postgres**, если предложен другой провайдер маркетплейса) → создать в регионе рядом с
-   Render/Railway.
-2. Vercel сгенерирует `DATABASE_URL`/`POSTGRES_URL` — скопировать pooled-подключение,
-   заменить префикс на `postgresql+asyncpg://` для бэкенда.
-3. Эту же строку указать в Environment Variables сервиса на Render/Railway (шаг 3.2) —
-   Vercel-проект фронта эту переменную не использует напрямую (БД нужна только API).
-4. Выполнить миграции: `alembic upgrade head` (Shell на Render или локально с этим `DATABASE_URL`).
+Порядок (важно соблюдать — DATABASE_URL для Render появляется только после шага 1,
+а CORS_ORIGINS/FRONTEND_URL для Render — только после шага 3):
 
-### 3.1 Supabase (Storage, опционально)
-1. https://supabase.com → New project (регион EU). Сохранить пароль БД.
-2. Settings → Database → Connection string (URI, режим Session) → это `DATABASE_URL` (заменить префикс на `postgresql+asyncpg://`).
-3. Storage → создать buckets: `avatars` (public), `media` (private).
-4. Settings → API → скопировать `SUPABASE_URL` и `service_role key` (→ `SUPABASE_SERVICE_KEY`, только в бэкенд!).
+### 3.1 Neon Postgres через Vercel (БД) — сделать первым
+1. https://vercel.com → создать проект из репозитория `xghostyyy/spi`, Root Directory
+   `frontend` (Vercel подхватит `frontend/vercel.json` автоматически, Framework — Vite,
+   Build/Output определятся сами).
+2. В том же проекте → **Storage** → **Create Database** → **Neon** (или **Postgres**,
+   если маркетплейс предложит другое имя) → создать в регионе рядом с будущим Render-сервисом.
+3. Скопировать pooled connection string, заменить префикс `postgresql://` на
+   `postgresql+asyncpg://` — это будущий `DATABASE_URL` для Render (шаг 3.2).
 
-### 3.2 Render (FastAPI + WebSocket)
-1. https://render.com → New → Web Service → подключить GitHub-репозиторий.
-2. Root Directory: `backend`, Runtime: Docker (в репо есть `backend/Dockerfile`).
-3. Environment → добавить все переменные из раздела 1 (руками, не файлом).
-4. После первого деплоя выполнить миграции: Shell → `alembic upgrade head`.
-5. Скопировать URL сервиса → `https://spi-api.onrender.com`.
+### 3.2 Render (FastAPI + WebSocket) — Blueprint из render.yaml
+1. https://render.com → New → **Blueprint** → подключить репозиторий `xghostyyy/spi`.
+   Render найдёт `render.yaml` в корне и предложит создать сервис `spi-api`
+   (Docker, `backend/Dockerfile`, `JWT_SECRET` сгенерируется автоматически).
+2. Перед первым деплоем в Environment добавить вручную (помечены `sync: false` в
+   `render.yaml`, Render запросит их при создании из Blueprint):
+   - `DATABASE_URL` — строка из шага 3.1.
+   - `CORS_ORIGINS`, `FRONTEND_URL` — временно `http://localhost:5173`, обновить после шага 3.3.
+   - `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` — можно оставить пустыми: код входа тогда
+     просто печатается в лог сервиса (Render → Logs), реальные письма не отправляются.
+   - `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` — можно оставить пустыми до фазы 5 (push).
+   - `REDIS_URL` — оставить пустым (не обязателен при одном инстансе, см. `docs/02-ARCHITECTURE.md` §4.2).
+3. После первого деплоя выполнить миграции: Render → сервис `spi-api` → Shell →
+   `alembic upgrade head`.
+4. Скопировать URL сервиса, например `https://spi-api.onrender.com`.
 
-> Free-план Render засыпает после 15 минут простоя (первый запрос ~30 сек). Для показа клиенту — разбудить заранее или взять Starter-план. Альтернатива — Railway.
+> Free-план Render засыпает после 15 минут простоя (первый запрос ~30 сек). Для показа
+> клиенту — разбудить заранее или взять Starter-план. Free-план не даёт постоянный диск:
+> `STORAGE_BACKEND=local` (аватары) не переживёт редеплой/рестарт — ожидаемо для тестового
+> деплоя; для устойчивого хранения — Render Disk (платно) или Supabase Storage (см. 3.4).
 
-### 3.3 Vercel (фронтенд)
-1. https://vercel.com → Add New Project → тот же репозиторий.
-2. Root Directory: `frontend`, Framework: Vite. Build: `npm run build`, Output: `dist`.
-3. Environment Variables: `VITE_API_URL`, `VITE_WS_URL`, `VITE_VAPID_PUBLIC_KEY`.
-4. Deploy → получаем `https://spi-messenger.vercel.app`.
-5. В Render обновить `CORS_ORIGINS` и `FRONTEND_URL` на этот домен.
+### 3.3 Vercel — переменные фронтенда и финальный CORS
+1. В проекте на Vercel (создан в шаге 3.1) → Settings → Environment Variables:
+   `VITE_API_URL=https://spi-api.onrender.com`,
+   `VITE_WS_URL=wss://spi-api.onrender.com/ws`, `VITE_VAPID_PUBLIC_KEY=` (пусто пока).
+2. Redeploy фронта (Vercel → Deployments → Redeploy), получить итоговый домен,
+   например `https://spi-messenger.vercel.app`.
+3. Вернуться в Render (шаг 3.2) и обновить `CORS_ORIGINS` и `FRONTEND_URL` на этот домен.
+
+### 3.4 Supabase (Storage) — не реализовано, только на будущее
+Чтобы аватары/медиа переживали редеплой Render без платного диска, нужен внешний
+storage. `STORAGE_BACKEND=supabase` в `backend/app/services/storage.py` пока —
+заглушка (`NotImplementedError`); переключать `STORAGE_BACKEND` на `supabase` рано,
+это отдельная задача разработки. До неё — либо мириться с потерей аватаров при
+редеплое (тестовый деплой), либо подключить платный Render Disk.
 
 ### 3.4 Проверка на iPhone
 1. Открыть URL в Safari → Поделиться → **«На экран "Домой"»**.

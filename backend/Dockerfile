@@ -14,4 +14,6 @@ COPY alembic.ini* ./
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Shell form (не exec) — нужно для подстановки $PORT: Render задаёт свой PORT для
+# Docker-сервисов, локально/на VPS переменная не задана и используется дефолт 8000.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2
