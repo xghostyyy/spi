@@ -3,9 +3,10 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import type { Chat } from '../../entities/chat/model';
+import type { Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
 import { createDirectChat, listChats } from '../../features/chats/api';
-import { useT } from '../../shared/i18n';
+import { useT, type TranslationKey } from '../../shared/i18n';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Badge } from '../../shared/ui/Badge';
 import { IconButton } from '../../shared/ui/IconButton';
@@ -13,6 +14,15 @@ import { Input } from '../../shared/ui/Input';
 import { GearIcon, PlusIcon, SearchIcon } from '../../shared/ui/icons';
 import { useTypingStore } from '../../shared/ws/typingStore';
 import styles from './ChatListPage.module.css';
+
+const PREVIEW_KEY_BY_TYPE: Partial<Record<string, TranslationKey>> = {
+  photo: 'preview.photo',
+  video: 'preview.video',
+  voice: 'preview.voice',
+  audio: 'preview.audio',
+  document: 'preview.document',
+  album: 'preview.album',
+};
 
 function formatTime(iso: string): string {
   const date = new Date(iso);
@@ -23,6 +33,13 @@ function formatTime(iso: string): string {
   return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
 }
 
+function previewText(message: Message, t: (key: TranslationKey) => string): string {
+  if (message.deletedForAll) return '';
+  if (message.body) return message.body;
+  const key = PREVIEW_KEY_BY_TYPE[message.type];
+  return key ? t(key) : '';
+}
+
 function ChatRow({ chat }: { chat: Chat }) {
   const t = useT();
   const { chatId } = useParams();
@@ -31,7 +48,9 @@ function ChatRow({ chat }: { chat: Chat }) {
 
   const preview = typing
     ? t('chat.typing')
-    : ((chat.lastMessage?.deletedForAll ? null : chat.lastMessage?.body) ?? '');
+    : chat.lastMessage
+      ? previewText(chat.lastMessage, t)
+      : '';
 
   return (
     <Link

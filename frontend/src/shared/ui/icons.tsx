@@ -166,3 +166,29 @@ export function CloseIcon({ size, className }: IconProps) {
     </svg>
   );
 }
+
+export function PlayIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className} fill="currentColor" stroke="none">
+      <path d="M6 4l14 8-14 8V4z" />
+    </svg>
+  );
+}
+
+export function PauseIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className} fill="currentColor" stroke="none">
+      <rect x="6" y="4" width="4" height="16" />
+      <rect x="14" y="4" width="4" height="16" />
+    </svg>
+  );
+}
+
+export function FileIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+}

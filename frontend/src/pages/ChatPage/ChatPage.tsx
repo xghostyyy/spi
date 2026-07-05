@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import type { Chat } from '../../entities/chat/model';
-import type { Message } from '../../entities/message/model';
+import type { FileKind, Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
+import { guessFileKind, uploadFile } from '../../features/files/api';
+import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
 import { listChats } from '../../features/chats/api';
 import {
   deleteMessage,
@@ -18,7 +20,15 @@ import { Avatar } from '../../shared/ui/Avatar';
 import { Button } from '../../shared/ui/Button';
 import { IconButton } from '../../shared/ui/IconButton';
 import { Input } from '../../shared/ui/Input';
-import { BackIcon, CloseIcon, PaperclipIcon, PhoneIcon, SendIcon } from '../../shared/ui/icons';
+import {
+  BackIcon,
+  CloseIcon,
+  MicIcon,
+  PaperclipIcon,
+  PhoneIcon,
+  SendIcon,
+  TrashIcon,
+} from '../../shared/ui/icons';
 import { wsClient } from '../../shared/ws/client';
 import { useTypingStore } from '../../shared/ws/typingStore';
 import { MessageRow } from './MessageRow';
@@ -76,9 +86,13 @@ export function ChatPage() {
 
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const voiceRecorder = useVoiceRecorder();
 
   const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
   const chat = chatsQuery.data?.find((c) => c.chatPublicId === chatId);
@@ -115,6 +129,32 @@ export function ChatPage() {
         replyToPublicId: replyTo?.messagePublicId,
       }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+
+  const sendMediaMutation = useMutation({
+    mutationFn: async (input: {
+      file: File | Blob;
+      kind: FileKind;
+      durationMs?: number;
+      waveform?: number[];
+    }) => {
+      const uploaded = await uploadFile(input.file, input.kind, {
+        durationMs: input.durationMs,
+        waveform: input.waveform,
+      });
+      return sendMessage(chatId!, {
+        clientMsgId: crypto.randomUUID(),
+        filePublicIds: [uploaded.publicId],
+        replyToPublicId: replyTo?.messagePublicId,
+      });
+    },
+    onMutate: () => setUploading(true),
+    onSettled: () => setUploading(false),
+    onSuccess: () => {
+      setReplyTo(null);
       void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
       void queryClient.invalidateQueries({ queryKey: ['chats'] });
     },
@@ -160,6 +200,29 @@ export function ChatPage() {
     setReplyTo(null);
     typingActiveRef.current = false;
     wsClient.send('typing', { chat_id: chatId, kind: 'text', active: false });
+  }
+
+  function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    sendMediaMutation.mutate({ file, kind: guessFileKind(file) });
+  }
+
+  async function handleStopAndSendVoice() {
+    const recording = await voiceRecorder.stop();
+    if (recording) {
+      sendMediaMutation.mutate({
+        file: recording.blob,
+        kind: 'voice',
+        durationMs: recording.durationMs,
+        waveform: recording.waveform,
+      });
+    }
+  }
+
+  function handleCancelVoice() {
+    voiceRecorder.cancel();
   }
 
   if (!chatId) {
@@ -232,6 +295,7 @@ export function ChatPage() {
                 onDelete={(scope) =>
                   deleteMutation.mutate({ messagePublicId: message.messagePublicId, scope })
                 }
+                onImageClick={setLightboxUrl}
               />
             </div>
           );
@@ -254,33 +318,77 @@ export function ChatPage() {
             </button>
           </div>
         ) : null}
-        <div className={styles.composerRow}>
-          <IconButton label={t('chat.attach')} disabled>
-            <PaperclipIcon />
-          </IconButton>
-          <Input
-            className={styles.composerInput}
-            placeholder={t('chat.placeholder')}
-            value={draft}
-            onChange={(e) => handleDraftChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <Button
-            variant="primary"
-            size="md"
-            type="button"
-            onClick={handleSend}
-            disabled={!draft.trim()}
-          >
-            <SendIcon size={18} />
-          </Button>
-        </div>
+        {voiceRecorder.isRecording ? (
+          <div className={styles.composerRow}>
+            <IconButton label={t('common.cancel')} onClick={handleCancelVoice}>
+              <TrashIcon />
+            </IconButton>
+            <span className={styles.recordingIndicator}>{t('chat.recordingVoice')}</span>
+            <IconButton
+              label={t('chat.voiceMessage')}
+              variant="accent"
+              onClick={() => void handleStopAndSendVoice()}
+            >
+              <SendIcon size={18} />
+            </IconButton>
+          </div>
+        ) : (
+          <div className={styles.composerRow}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              hidden
+              onChange={handleFileSelected}
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar,.txt"
+            />
+            <IconButton
+              label={t('chat.attach')}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              <PaperclipIcon />
+            </IconButton>
+            <Input
+              className={styles.composerInput}
+              placeholder={t('chat.placeholder')}
+              value={draft}
+              onChange={(e) => handleDraftChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+            {draft.trim() ? (
+              <Button variant="primary" size="md" type="button" onClick={handleSend}>
+                <SendIcon size={18} />
+              </Button>
+            ) : (
+              <IconButton
+                label={t('chat.voiceMessage')}
+                onClick={() => void voiceRecorder.start()}
+                disabled={uploading}
+              >
+                <MicIcon />
+              </IconButton>
+            )}
+          </div>
+        )}
       </div>
+
+      {lightboxUrl ? (
+        <div className={styles.lightbox} onClick={() => setLightboxUrl(null)}>
+          <img src={lightboxUrl} alt="" className={styles.lightboxImage} />
+          <IconButton
+            label={t('common.cancel')}
+            className={styles.lightboxClose}
+            onClick={() => setLightboxUrl(null)}
+          >
+            <CloseIcon />
+          </IconButton>
+        </div>
+      ) : null}
     </div>
   );
 }

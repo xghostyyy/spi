@@ -10,14 +10,20 @@ export async function listMessages(chatPublicId: string, before?: string): Promi
 
 export async function sendMessage(
   chatPublicId: string,
-  input: { clientMsgId: string; body: string; replyToPublicId?: string | null },
+  input: {
+    clientMsgId: string;
+    body?: string | null;
+    replyToPublicId?: string | null;
+    filePublicIds?: string[];
+  },
 ): Promise<Message> {
   const res = await apiFetch<MessageDto>(`/api/v1/chats/${chatPublicId}/messages`, {
     method: 'POST',
     body: {
       client_msg_id: input.clientMsgId,
-      body: input.body,
+      body: input.body ?? null,
       reply_to_public_id: input.replyToPublicId ?? null,
+      file_public_ids: input.filePublicIds ?? [],
     },
   });
   return messageFromDto(res);

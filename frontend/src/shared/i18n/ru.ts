@@ -13,6 +13,12 @@ export const ru = {
   'chatlist.savedMessages': 'Сохраненные сообщения',
   'chatlist.newChatPlaceholder': 'Введите @username и нажмите Enter',
   'chatlist.you': 'Вы:',
+  'preview.photo': '📷 Фото',
+  'preview.video': '📹 Видео',
+  'preview.voice': '🎤 Голосовое сообщение',
+  'preview.audio': '🎵 Аудио',
+  'preview.document': '📎 Документ',
+  'preview.album': '🖼 Альбом',
 
   'chat.placeholder': 'Сообщение',
   'chat.selectChat': 'Выберите чат, чтобы начать переписку',

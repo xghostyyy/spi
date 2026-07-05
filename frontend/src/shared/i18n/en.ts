@@ -15,6 +15,12 @@ export const en: Record<TranslationKey, string> = {
   'chatlist.savedMessages': 'Saved Messages',
   'chatlist.newChatPlaceholder': 'Enter @username and press Enter',
   'chatlist.you': 'You:',
+  'preview.photo': '📷 Photo',
+  'preview.video': '📹 Video',
+  'preview.voice': '🎤 Voice message',
+  'preview.audio': '🎵 Audio',
+  'preview.document': '📎 Document',
+  'preview.album': '🖼 Album',
 
   'chat.placeholder': 'Message',
   'chat.selectChat': 'Select a chat to start messaging',

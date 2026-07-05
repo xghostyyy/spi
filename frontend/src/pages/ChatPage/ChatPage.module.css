@@ -235,6 +235,131 @@
   flex: 1;
 }
 
+.recordingIndicator {
+  flex: 1;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.caption {
+  margin-top: var(--space-1);
+}
+
+.mediaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 4px;
+  max-width: 320px;
+}
+
+.mediaImage {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 10px;
+  cursor: pointer;
+  display: block;
+}
+
+.mediaVideo {
+  max-width: 320px;
+  max-height: 320px;
+  border-radius: 10px;
+  display: block;
+}
+
+.fileCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-elevated);
+  color: inherit;
+  text-decoration: none;
+  min-width: 200px;
+}
+
+.fileInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+}
+
+.fileSize {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.voicePlayer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 220px;
+}
+
+.waveform {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+}
+
+.waveformBar {
+  flex: 1;
+  min-width: 2px;
+  background: currentColor;
+  border-radius: 2px;
+  opacity: 0.4;
+}
+
+.speedButton {
+  border: none;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.voiceDuration {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-lightbox);
+  background: rgb(0 0 0 / 85%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightboxImage {
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+}
+
+.lightboxClose {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  color: #fff;
+}
+
 @media (max-width: 767px) {
   .backLink {
     display: flex;

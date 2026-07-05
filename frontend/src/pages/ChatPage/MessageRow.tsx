@@ -6,6 +6,7 @@ import { Button } from '../../shared/ui/Button';
 import { MessageBubble } from '../../shared/ui/MessageBubble';
 import { PencilIcon, ReplyIcon, TrashIcon } from '../../shared/ui/icons';
 import styles from './ChatPage.module.css';
+import { MessageAttachments } from './MessageAttachments';
 
 interface MessageRowProps {
   message: Message;
@@ -16,6 +17,7 @@ interface MessageRowProps {
   onToggleHeart: () => void;
   onEdit: (body: string) => void;
   onDelete: (scope: 'self' | 'all') => void;
+  onImageClick: (url: string) => void;
 }
 
 function formatTime(iso: string): string {
@@ -31,6 +33,7 @@ export function MessageRow({
   onToggleHeart,
   onEdit,
   onDelete,
+  onImageClick,
 }: MessageRowProps) {
   const t = useT();
   const [editing, setEditing] = useState(false);
@@ -124,7 +127,18 @@ export function MessageRow({
         status={isOwn ? message.status : undefined}
         edited={!!message.editedAt}
       >
-        {message.deletedForAll ? <em>{t('chat.deleted')}</em> : message.body}
+        {message.deletedForAll ? (
+          <em>{t('chat.deleted')}</em>
+        ) : (
+          <>
+            <MessageAttachments
+              attachments={message.attachments}
+              type={message.type}
+              onImageClick={onImageClick}
+            />
+            {message.body ? <div className={styles.caption}>{message.body}</div> : null}
+          </>
+        )}
       </MessageBubble>
 
       {message.reactions.length > 0 ? (
