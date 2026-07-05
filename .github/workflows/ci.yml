@@ -113,8 +113,14 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          pg_dump -h localhost -U postgres --schema-only --no-owner --no-privileges spi_reference > /tmp/reference.sql
-          pg_dump -h localhost -U postgres --schema-only --no-owner --no-privileges spi_migrated > /tmp/migrated.sql
+          # \restrict/\unrestrict carry a random per-dump token (pg_dump 16+) and
+          # alembic_version is Alembic's own bookkeeping table — both expected to
+          # differ and excluded from the comparison.
+          pg_dump -h localhost -U postgres --schema-only --no-owner --no-privileges spi_reference \
+            | grep -v -E '^\\(un)?restrict' > /tmp/reference.sql
+          pg_dump -h localhost -U postgres --schema-only --no-owner --no-privileges \
+            --exclude-table=alembic_version spi_migrated \
+            | grep -v -E '^\\(un)?restrict' > /tmp/migrated.sql
           diff /tmp/reference.sql /tmp/migrated.sql
 
   lint-test-frontend:
