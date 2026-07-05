@@ -39,10 +39,28 @@ export const ru = {
   'settings.theme.dark': 'Тёмная',
   'settings.language': 'Язык',
   'settings.editProfile': 'Изменить профиль',
+  'settings.displayName': 'Имя',
+  'settings.username': 'Username',
+  'settings.bio': 'О себе',
+  'settings.email': 'E-mail',
+  'settings.avatarChange': 'Изменить фото',
+  'settings.usernameTaken': 'Этот username уже занят',
+  'settings.contacts': 'Контакты',
+  'settings.addContact': 'Добавить по @username',
+  'settings.noContacts': 'Пока нет контактов',
+  'settings.logout': 'Выйти',
+  'settings.privacy': 'Приватность',
+  'settings.privacy.lastSeen': 'Кто видит время «был(а) в сети»',
+  'settings.privacy.avatar': 'Кто видит аватар',
+  'settings.privacy.all': 'Все',
+  'settings.privacy.contacts': 'Контакты',
+  'settings.privacy.nobody': 'Никто',
 
   'common.save': 'Сохранить',
   'common.cancel': 'Отмена',
   'common.loading': 'Загрузка…',
+  'common.add': 'Добавить',
+  'common.remove': 'Удалить',
 } as const;
 
 export type TranslationKey = keyof typeof ru;
