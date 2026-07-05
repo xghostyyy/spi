@@ -10,7 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api import auth, blocks, chats, contacts, files, messages, sync, users
+from app.api import auth, blocks, bookmarks, chats, contacts, files, messages, sync, users
 from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.ws.router import router as ws_router
@@ -58,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(chats.router, prefix=API_PREFIX)
     app.include_router(messages.router, prefix=API_PREFIX)
     app.include_router(files.router, prefix=API_PREFIX)
+    app.include_router(bookmarks.router, prefix=API_PREFIX)
     app.include_router(sync.router, prefix=API_PREFIX)
     app.include_router(ws_router)
 

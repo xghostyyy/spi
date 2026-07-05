@@ -58,6 +58,7 @@ class MessageOut(BaseModel):
     status: str
     reactions: list[ReactionSummary]
     attachments: list[FileOut]
+    bookmarked: bool
 
 
 class UserOut(BaseModel):

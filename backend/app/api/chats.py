@@ -13,7 +13,12 @@ from app.api.schemas import ChatOut
 from app.core.deps import get_current_user
 from app.db.models import Chat, ChatMember, User
 from app.db.session import get_db
-from app.services.chat import build_chat_out, get_membership_or_404, get_or_create_direct_chat
+from app.services.chat import (
+    build_chat_out,
+    get_membership_or_404,
+    get_or_create_direct_chat,
+    get_or_create_saved_chat,
+)
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -75,6 +80,20 @@ async def create_direct_chat(
         )
 
     chat = await get_or_create_direct_chat(db, user, target)
+    await db.commit()
+
+    member_result = await db.execute(
+        select(ChatMember).where(ChatMember.chat_id == chat.id, ChatMember.user_id == user.id)
+    )
+    member = member_result.scalar_one()
+    return await build_chat_out(db, chat, member, user)
+
+
+@router.get("/saved", response_model=ChatOut)
+async def get_saved_chat(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> ChatOut:
+    chat = await get_or_create_saved_chat(db, user)
     await db.commit()
 
     member_result = await db.execute(

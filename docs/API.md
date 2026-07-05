@@ -65,7 +65,12 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
   Нужен либо `body`, либо хотя бы одно вложение (иначе `400 empty_message`).
 - Ответ сообщения включает `attachments: FileOut[]` (`url`, `thumb_url`, `width`/`height`,
   `duration_ms`, `waveform`, `original_name`).
-- vCard/геолокация, Saved Messages, поиск, пересылка — в разработке (см. `docs/01-TZ.md`).
+- `GET /api/v1/chats/saved` — идемпотентно находит/создаёт личный чат `type=saved`
+  (Saved Messages); отправка/чтение — через обычные `.../messages` эндпоинты.
+- `GET /api/v1/bookmarks`, `POST /api/v1/bookmarks/{message_public_id}` — закладки
+  (флажок) на любое сообщение из своих чатов, независимо от Saved Messages; `MessageOut`
+  содержит `bookmarked`.
+- vCard/геолокация, поиск, пересылка — в разработке (см. `docs/01-TZ.md`).
 
 ## WebSocket `/ws`
 

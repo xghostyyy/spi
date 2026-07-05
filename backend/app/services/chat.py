@@ -15,8 +15,10 @@ from app.db.models import (
     ChatMember,
     ChatType,
     File,
+    MemberRole,
     Message,
     MessageAttachment,
+    MessageBookmark,
     MessageReaction,
     User,
 )
@@ -75,6 +77,33 @@ async def get_or_create_direct_chat(db: AsyncSession, user_a: User, user_b: User
             ChatMember(chat_id=chat.id, user_id=user_b.id, joined_at=now),
         ]
     )
+    await db.flush()
+    return chat
+
+
+async def get_or_create_saved_chat(db: AsyncSession, user: User) -> Chat:
+    """Личное «облако» пользователя (Saved Messages) — единственный участник он сам."""
+    existing = await db.execute(
+        select(Chat)
+        .join(ChatMember, ChatMember.chat_id == Chat.id)
+        .where(Chat.type == ChatType.saved, ChatMember.user_id == user.id)
+    )
+    chat = existing.scalars().first()
+    if chat is not None:
+        return chat
+
+    now = datetime.now(UTC)
+    chat = Chat(
+        public_id=str(ULID()),
+        type=ChatType.saved,
+        owner_id=user.id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(chat)
+    await db.flush()
+
+    db.add(ChatMember(chat_id=chat.id, user_id=user.id, role=MemberRole.owner, joined_at=now))
     await db.flush()
     return chat
 
@@ -192,6 +221,13 @@ async def build_message_out(
     is_deleted = message.deleted_for_all_at is not None
     attachments = [] if is_deleted else await get_attachments(db, message.id)
 
+    bookmark_result = await db.execute(
+        select(MessageBookmark).where(
+            MessageBookmark.message_id == message.id, MessageBookmark.user_id == viewer_id
+        )
+    )
+    bookmarked = bookmark_result.scalar_one_or_none() is not None
+
     return MessageOut(
         message_public_id=message.public_id,
         chat_public_id=chat.public_id,
@@ -205,6 +241,7 @@ async def build_message_out(
         status=status_value,
         reactions=[ReactionSummary(**r) for r in reactions],
         attachments=attachments,
+        bookmarked=bookmarked,
     )
 
 
