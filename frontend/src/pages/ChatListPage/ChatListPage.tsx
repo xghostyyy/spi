@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import type { Chat } from '../../entities/chat/model';
 import type { Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
 import { createDirectChat, getSavedChat, listChats } from '../../features/chats/api';
+import { search as searchApi } from '../../features/search/api';
 import { useT, type TranslationKey } from '../../shared/i18n';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Badge } from '../../shared/ui/Badge';
@@ -14,6 +15,9 @@ import { Input } from '../../shared/ui/Input';
 import { BookmarkFilledIcon, GearIcon, PlusIcon, SearchIcon } from '../../shared/ui/icons';
 import { useTypingStore } from '../../shared/ws/typingStore';
 import styles from './ChatListPage.module.css';
+
+const SEARCH_DEBOUNCE_MS = 300;
+const SEARCH_MIN_LENGTH = 2;
 
 const PREVIEW_KEY_BY_TYPE: Partial<Record<string, TranslationKey>> = {
   photo: 'preview.photo',
@@ -116,6 +120,19 @@ function SavedMessagesRow() {
   );
 }
 
+function MessageResultRow({ message }: { message: Message }) {
+  return (
+    <Link to={`/chat/${message.chatPublicId}`} className={styles.row}>
+      <div className={styles.rowBody}>
+        <div className={styles.rowTop}>
+          <span className={styles.rowTitle}>{formatTime(message.createdAt)}</span>
+        </div>
+        <span className={styles.rowPreview}>{message.body}</span>
+      </div>
+    </Link>
+  );
+}
+
 export function ChatListPage() {
   const t = useT();
   const navigate = useNavigate();
@@ -123,11 +140,23 @@ export function ChatListPage() {
   const user = useSessionStore((s) => s.user);
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [creating, setCreating] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
+
+  const searchQuery = useQuery({
+    queryKey: ['search', debouncedSearch],
+    queryFn: () => searchApi(debouncedSearch),
+    enabled: debouncedSearch.length >= SEARCH_MIN_LENGTH,
+  });
 
   const createChatMutation = useMutation({
     mutationFn: (username: string) => createDirectChat(username),
@@ -206,6 +235,15 @@ export function ChatListPage() {
           ))}
         </div>
       )}
+
+      {searchQuery.data && searchQuery.data.messages.length > 0 ? (
+        <div className={styles.list}>
+          <div className={styles.searchSectionTitle}>{t('chatlist.search')}</div>
+          {searchQuery.data.messages.map((message) => (
+            <MessageResultRow key={message.messagePublicId} message={message} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
