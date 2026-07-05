@@ -117,8 +117,10 @@ CREATE TABLE files (
     duration_ms  INTEGER,                                    -- аудио/видео/voice
     waveform     JSONB,                                      -- волновая форма голосового
     thumb_key    VARCHAR(512),                               -- превью
-    original_name VARCHAR(255),                              -- имя файла у отправителя (документы)
-    created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    original_name VARCHAR(255)                                -- имя файла у отправителя (документы); добавлена
+                                                               -- миграцией 0002 после created_at (ALTER TABLE
+                                                               -- всегда добавляет колонку в конец — см. ADR-012)
 );
 
 ALTER TABLE users
