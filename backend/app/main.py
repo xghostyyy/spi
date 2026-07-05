@@ -10,9 +10,10 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api import auth, blocks, contacts, users
+from app.api import auth, blocks, chats, contacts, messages, sync, users
 from app.core.config import get_settings
 from app.core.limiter import limiter
+from app.ws.router import router as ws_router
 
 APP_VERSION = "0.1.0"
 API_PREFIX = "/api/v1"
@@ -54,6 +55,10 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix=API_PREFIX)
     app.include_router(contacts.router, prefix=API_PREFIX)
     app.include_router(blocks.router, prefix=API_PREFIX)
+    app.include_router(chats.router, prefix=API_PREFIX)
+    app.include_router(messages.router, prefix=API_PREFIX)
+    app.include_router(sync.router, prefix=API_PREFIX)
+    app.include_router(ws_router)
 
     if settings.storage_backend == "local":
         media_root = Path(settings.storage_local_path)

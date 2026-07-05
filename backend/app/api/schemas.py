@@ -2,9 +2,31 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
-from app.db.models import File, PrivacyLevel, ThemePref, User
+from app.db.models import File, MessageType, PrivacyLevel, ThemePref, User
+
+
+class ReactionSummary(BaseModel):
+    emoji: str
+    count: int
+    reacted_by_me: bool
+
+
+class MessageOut(BaseModel):
+    message_public_id: str
+    chat_public_id: str
+    sender_public_id: str | None
+    type: MessageType
+    body: str | None
+    reply_to_public_id: str | None
+    edited_at: datetime | None
+    deleted_for_all: bool
+    created_at: datetime
+    status: str
+    reactions: list[ReactionSummary]
 
 
 class UserOut(BaseModel):
@@ -34,3 +56,19 @@ class UserOut(BaseModel):
             privacy_last_seen=user.privacy_last_seen,
             privacy_avatar=user.privacy_avatar,
         )
+
+
+class ChatOut(BaseModel):
+    chat_public_id: str
+    type: str
+    title: str
+    avatar_url: str | None
+    is_pinned: bool
+    is_archived: bool
+    muted_until: datetime | None
+    unread_count: int
+    last_message: MessageOut | None
+    peer_public_id: str | None
+    peer_username: str | None
+    peer_online: bool
+    peer_last_seen_at: datetime | None

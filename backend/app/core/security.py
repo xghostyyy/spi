@@ -57,3 +57,30 @@ def decode_access_token(token: str) -> str:
 
 def generate_refresh_secret() -> str:
     return secrets.token_urlsafe(48)
+
+
+_WS_TICKET_TTL_SECONDS = 60
+
+
+def create_ws_ticket(user_public_id: str) -> str:
+    """Короткоживущий тикет для подключения к /ws (не светится в логах дольше секунд TTL)."""
+    settings = get_settings()
+    now = datetime.now(UTC)
+    payload: dict[str, Any] = {
+        "sub": user_public_id,
+        "iat": now,
+        "exp": now + timedelta(seconds=_WS_TICKET_TTL_SECONDS),
+        "type": "ws",
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+
+
+def decode_ws_ticket(token: str) -> str:
+    settings = get_settings()
+    payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+    if payload.get("type") != "ws":
+        raise jwt.InvalidTokenError("wrong token type")
+    sub = payload["sub"]
+    if not isinstance(sub, str):
+        raise jwt.InvalidTokenError("malformed subject")
+    return sub

@@ -1,13 +1,16 @@
 """SQLAlchemy-модели. Должны соответствовать db/schema.sql (см. ADR-004 в docs/DECISIONS.md).
 
-Пока моделируются только таблицы, необходимые для реализованных фаз (0-1):
-users, files, email_login_codes, sessions, contacts, blocked_users.
-Остальные таблицы схемы получат модели по мере реализации следующих фаз.
+Пока моделируются только таблицы, необходимые для реализованных фаз (0-2):
+users, files, email_login_codes, sessions, contacts, blocked_users, chats,
+chat_members, messages, message_reactions, message_hidden, pinned_messages, drafts.
+Остальные таблицы схемы (вложения, опросы, инвайты и т.д.) получат модели
+по мере реализации следующих фаз.
 """
 
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 
 from sqlalchemy import (
@@ -18,9 +21,11 @@ from sqlalchemy import (
     ForeignKey,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -48,10 +53,39 @@ class FileKind(enum.StrEnum):
     sticker = "sticker"
 
 
+class ChatType(enum.StrEnum):
+    direct = "direct"
+    group = "group"
+    saved = "saved"
+
+
+class MemberRole(enum.StrEnum):
+    owner = "owner"
+    admin = "admin"
+    member = "member"
+
+
+class MessageType(enum.StrEnum):
+    text = "text"
+    photo = "photo"
+    video = "video"
+    audio = "audio"
+    voice = "voice"
+    document = "document"
+    contact = "contact"
+    location = "location"
+    album = "album"
+    poll = "poll"
+    system = "system"
+
+
 # create_type=False: типы создаются миграцией (raw SQL db/schema.sql), не моделями.
 theme_pref_pg = PgEnum(ThemePref, name="theme_pref", create_type=False)
 privacy_level_pg = PgEnum(PrivacyLevel, name="privacy_level", create_type=False)
 file_kind_pg = PgEnum(FileKind, name="file_kind", create_type=False)
+chat_type_pg = PgEnum(ChatType, name="chat_type", create_type=False)
+member_role_pg = PgEnum(MemberRole, name="member_role", create_type=False)
+message_type_pg = PgEnum(MessageType, name="message_type", create_type=False)
 
 
 class File(Base):
@@ -164,3 +198,137 @@ class BlockedUser(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     blocked_user: Mapped[User] = relationship(foreign_keys=[blocked_id])
+
+
+class Chat(Base):
+    __tablename__ = "chats"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    public_id: Mapped[str] = mapped_column(CHAR(26), unique=True, nullable=False)
+    type: Mapped[ChatType] = mapped_column(chat_type_pg, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(128))
+    description: Mapped[str | None] = mapped_column(String(512))
+    avatar_file_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("files.id", ondelete="SET NULL")
+    )
+    owner_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ChatMember(Base):
+    __tablename__ = "chat_members"
+    __table_args__ = (UniqueConstraint("chat_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[MemberRole] = mapped_column(
+        member_role_pg, nullable=False, default=MemberRole.member
+    )
+    can_delete_messages: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    can_ban: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    can_invite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    can_pin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    can_edit_info: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    muted_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_read_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    banned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
+class Message(Base):
+    __tablename__ = "messages"
+    __table_args__ = (UniqueConstraint("chat_id", "sender_id", "client_msg_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    public_id: Mapped[str] = mapped_column(CHAR(26), unique=True, nullable=False)
+    chat_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
+    )
+    sender_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    client_msg_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    type: Mapped[MessageType] = mapped_column(
+        message_type_pg, nullable=False, default=MessageType.text
+    )
+    body: Mapped[str | None] = mapped_column(Text)
+    reply_to_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("messages.id", ondelete="SET NULL")
+    )
+    forwarded_from_msg_id: Mapped[int | None] = mapped_column(BigInteger)
+    forwarded_from_user_id: Mapped[int | None] = mapped_column(BigInteger)
+    payload: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deleted_for_all_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    sender: Mapped[User | None] = relationship(foreign_keys=[sender_id])
+    reply_to: Mapped[Message | None] = relationship(remote_side=[id])
+
+
+class MessageReaction(Base):
+    __tablename__ = "message_reactions"
+
+    message_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("messages.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    emoji: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class MessageHidden(Base):
+    __tablename__ = "message_hidden"
+
+    message_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("messages.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class PinnedMessage(Base):
+    __tablename__ = "pinned_messages"
+
+    chat_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("chats.id", ondelete="CASCADE"), primary_key=True
+    )
+    message_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("messages.id", ondelete="CASCADE"), primary_key=True
+    )
+    pinned_by: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    pinned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Draft(Base):
+    __tablename__ = "drafts"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    chat_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("chats.id", ondelete="CASCADE"), primary_key=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    reply_to_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("messages.id", ondelete="SET NULL")
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

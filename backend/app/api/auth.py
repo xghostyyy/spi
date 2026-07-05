@@ -17,6 +17,7 @@ from app.core.deps import get_current_user
 from app.core.limiter import limiter
 from app.core.security import (
     create_access_token,
+    create_ws_ticket,
     generate_login_code,
     generate_refresh_secret,
     hash_secret,
@@ -64,6 +65,10 @@ class VerifyCodeBody(BaseModel):
 class AuthResponse(BaseModel):
     access_token: str
     user: UserOut
+
+
+class WsTicketResponse(BaseModel):
+    ticket: str
 
 
 def _set_refresh_cookie(response: Response, value: str) -> None:
@@ -243,3 +248,8 @@ async def logout(
                 session.revoked_at = datetime.now(UTC)
                 await db.commit()
     response.delete_cookie(_REFRESH_COOKIE, path=_REFRESH_COOKIE_PATH)
+
+
+@router.post("/ws-ticket", response_model=WsTicketResponse)
+async def issue_ws_ticket(user: User = Depends(get_current_user)) -> WsTicketResponse:
+    return WsTicketResponse(ticket=create_ws_ticket(user.public_id))
