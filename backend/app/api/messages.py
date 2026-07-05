@@ -8,7 +8,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
@@ -77,6 +77,7 @@ async def list_messages(
     chat_public_id: str,
     before: str | None = Query(default=None),
     limit: int = Query(default=50, le=100, ge=1),
+    q: str | None = Query(default=None, min_length=1, max_length=200),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[MessageOut]:
@@ -90,6 +91,8 @@ async def list_messages(
         before_id = before_result.scalar_one_or_none()
         if before_id is not None:
             stmt = stmt.where(Message.id < before_id)
+    if q:
+        stmt = stmt.where(Message.search_tsv.op("@@")(func.plainto_tsquery("russian", q)))
     stmt = stmt.order_by(Message.id.desc()).limit(limit)
 
     result = await db.execute(stmt)

@@ -70,7 +70,11 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
 - `GET /api/v1/bookmarks`, `POST /api/v1/bookmarks/{message_public_id}` — закладки
   (флажок) на любое сообщение из своих чатов, независимо от Saved Messages; `MessageOut`
   содержит `bookmarked`.
-- vCard/геолокация, поиск, пересылка — в разработке (см. `docs/01-TZ.md`).
+- `GET /api/v1/search?q=` — глобальный поиск: чаты по имени/`@username` собеседника +
+  сообщения (полнотекстовый, `tsvector`/`russian`, по всем своим чатам).
+- `GET /api/v1/chats/{id}/messages?q=` — тот же полнотекстовый поиск, но внутри чата
+  (комбинируется с курсором `before`/`limit`).
+- vCard/геолокация, пересылка — в разработке (см. `docs/01-TZ.md`).
 
 ## WebSocket `/ws`
 
