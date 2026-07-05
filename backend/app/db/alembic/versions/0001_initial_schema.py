@@ -4,6 +4,11 @@
 а прогоняет эталонный db/schema.sql, чтобы исключить любое расхождение между
 схемой и миграцией.
 
+asyncpg не умеет выполнять несколько SQL-команд в одном prepared statement
+("cannot insert multiple commands into a prepared statement"), поэтому файл
+разбивается на отдельные операторы; разбиение учитывает блоки `$$...$$`
+(тело plpgsql-функций), где могут встречаться "свои" точки с запятой.
+
 Revision ID: 0001
 Revises:
 Create Date: 2026-07-05
@@ -25,10 +30,45 @@ depends_on: Sequence[str] | None = None
 _SCHEMA_SQL_PATH = Path(__file__).resolve().parents[5] / "db" / "schema.sql"
 
 
+def _split_sql_statements(sql: str) -> list[str]:
+    """Делит SQL-скрипт на отдельные команды по ';', игнорируя ';' внутри '$$...$$'."""
+    statements: list[str] = []
+    buffer: list[str] = []
+    in_dollar_quote = False
+    i = 0
+    length = len(sql)
+
+    while i < length:
+        if sql[i : i + 2] == "$$":
+            in_dollar_quote = not in_dollar_quote
+            buffer.append("$$")
+            i += 2
+            continue
+        char = sql[i]
+        if char == ";" and not in_dollar_quote:
+            buffer.append(";")
+            statement = "".join(buffer).strip()
+            if statement and statement != ";":
+                statements.append(statement)
+            buffer = []
+        else:
+            buffer.append(char)
+        i += 1
+
+    tail = "".join(buffer).strip()
+    if tail:
+        statements.append(tail)
+    return statements
+
+
 def upgrade() -> None:
     sql = _SCHEMA_SQL_PATH.read_text(encoding="utf-8")
-    op.get_bind().exec_driver_sql(sql)
+    bind = op.get_bind()
+    for statement in _split_sql_statements(sql):
+        bind.exec_driver_sql(statement)
 
 
 def downgrade() -> None:
-    op.get_bind().exec_driver_sql("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+    bind = op.get_bind()
+    bind.exec_driver_sql("DROP SCHEMA public CASCADE")
+    bind.exec_driver_sql("CREATE SCHEMA public")
