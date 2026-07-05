@@ -22,6 +22,10 @@ select = [
 ]
 ignore = [
   "S101",             # assert — используется в тестах
+  "RUF001",           # кириллица в строках — намеренно (RU — основной язык интерфейса)
+  "RUF002",           # кириллица в докстрингах — намеренно
+  "RUF003",           # кириллица в комментариях — намеренно
+  "B008",             # Depends(...) в аргументах по умолчанию — идиома FastAPI
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -34,8 +38,12 @@ packages = ["app"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pywebpush", "slowapi.*"]
+module = ["pywebpush", "slowapi.*", "ulid.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "app.db.alembic.versions.*"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
