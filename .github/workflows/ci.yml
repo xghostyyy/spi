@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test-backend:
+    name: lint-test (backend)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: spi_messenger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/spi_messenger
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: ruff format --check
+        run: ruff format --check .
+
+      - name: mypy
+        run: mypy app
+
+      - name: Apply migrations
+        run: alembic upgrade head
+
+      - name: pytest
+        run: pytest -q
+
+  schema-check:
+    name: schema-check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Install postgresql-client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Create reference and migrated databases
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c "CREATE DATABASE spi_reference;"
+          psql -h localhost -U postgres -c "CREATE DATABASE spi_migrated;"
+
+      - name: Apply db/schema.sql to reference database
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d spi_reference -f db/schema.sql
+
+      - name: Apply Alembic migrations to migrated database
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/spi_migrated
+        run: alembic upgrade head
+
+      - name: Diff reference schema vs migrated schema
+        env:
+          PGPASSWORD: postgres
+        run: |
+          pg_dump -h localhost -U postgres --schema-only --no-owner --no-privileges spi_reference > /tmp/reference.sql
+          pg_dump -h localhost -U postgres --schema-only --no-owner --no-privileges spi_migrated > /tmp/migrated.sql
+          diff /tmp/reference.sql /tmp/migrated.sql
+
+  lint-test-frontend:
+    name: lint-test (frontend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: eslint + prettier
+        run: npm run lint
+
+      - name: tsc
+        run: npm run typecheck
+
+      - name: vitest
+        run: npm test
+
+      - name: build
+        run: npm run build
