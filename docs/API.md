@@ -52,7 +52,20 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
 - `POST /api/v1/auth/ws-ticket` → `GET /ws?ticket=...` — WS-подключение; `GET
   /api/v1/sync?since=<ISO-время>` — упрощённая догрузка сообщений после reconnect
   (см. `docs/DECISIONS.md`, ADR-008: без персистентного event-log).
-- Группы, медиа, поиск, черновики (drafts) и опросы — ещё не реализованы (см. `docs/01-TZ.md`).
+- Группы, поиск, черновики (drafts) и опросы — ещё не реализованы (см. `docs/01-TZ.md`).
+
+## Реализовано (Фаза 3, медиа)
+
+- `POST /api/v1/files` (multipart: `file`, `kind`, опционально `duration_ms`/`waveform`) —
+  загрузка фото (авто-resize ≤2000px + превью 480px), видео/аудио/документов (как есть),
+  голосовых (клиент шлёт волновую форму и длительность — сервер аудио не декодирует,
+  см. `docs/DECISIONS.md`). MIME/размер валидируются по `kind` (лимиты 15–100 МБ).
+- `POST /api/v1/chats/{id}/messages` принимает `file_public_ids` (до 10); тип сообщения
+  (`photo`/`video`/`audio`/`voice`/`document`/`album`) выводится из вложений автоматически.
+  Нужен либо `body`, либо хотя бы одно вложение (иначе `400 empty_message`).
+- Ответ сообщения включает `attachments: FileOut[]` (`url`, `thumb_url`, `width`/`height`,
+  `duration_ms`, `waveform`, `original_name`).
+- vCard/геолокация, Saved Messages, поиск, пересылка — в разработке (см. `docs/01-TZ.md`).
 
 ## WebSocket `/ws`
 

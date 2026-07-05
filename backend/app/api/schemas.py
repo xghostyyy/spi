@@ -6,13 +6,43 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.db.models import File, MessageType, PrivacyLevel, ThemePref, User
+from app.db.models import File, FileKind, MessageType, PrivacyLevel, ThemePref, User
 
 
 class ReactionSummary(BaseModel):
     emoji: str
     count: int
     reacted_by_me: bool
+
+
+class FileOut(BaseModel):
+    public_id: str
+    kind: FileKind
+    url: str
+    thumb_url: str | None
+    mime_type: str
+    size_bytes: int
+    width: int | None
+    height: int | None
+    duration_ms: int | None
+    waveform: list[float] | None
+    original_name: str | None
+
+    @staticmethod
+    def from_model(file: File) -> FileOut:
+        return FileOut(
+            public_id=file.public_id,
+            kind=file.kind,
+            url=f"/media/{file.storage_key}",
+            thumb_url=f"/media/{file.thumb_key}" if file.thumb_key else None,
+            mime_type=file.mime_type,
+            size_bytes=file.size_bytes,
+            width=file.width,
+            height=file.height,
+            duration_ms=file.duration_ms,
+            waveform=file.waveform,
+            original_name=file.original_name,
+        )
 
 
 class MessageOut(BaseModel):
@@ -27,6 +57,7 @@ class MessageOut(BaseModel):
     created_at: datetime
     status: str
     reactions: list[ReactionSummary]
+    attachments: list[FileOut]
 
 
 class UserOut(BaseModel):

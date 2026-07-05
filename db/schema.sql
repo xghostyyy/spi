@@ -117,6 +117,7 @@ CREATE TABLE files (
     duration_ms  INTEGER,                                    -- аудио/видео/voice
     waveform     JSONB,                                      -- волновая форма голосового
     thumb_key    VARCHAR(512),                               -- превью
+    original_name VARCHAR(255),                              -- имя файла у отправителя (документы)
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 

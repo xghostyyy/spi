@@ -9,13 +9,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
-from app.api.schemas import ChatOut, MessageOut, ReactionSummary
+from app.api.schemas import ChatOut, FileOut, MessageOut, ReactionSummary
 from app.db.models import (
     Chat,
     ChatMember,
     ChatType,
     File,
     Message,
+    MessageAttachment,
     MessageReaction,
     User,
 )
@@ -161,6 +162,16 @@ async def avatar_url_for(db: AsyncSession, avatar_file_id: int | None) -> str | 
     return f"/media/{key}" if key else None
 
 
+async def get_attachments(db: AsyncSession, message_id: int) -> list[FileOut]:
+    result = await db.execute(
+        select(File)
+        .join(MessageAttachment, MessageAttachment.file_id == File.id)
+        .where(MessageAttachment.message_id == message_id)
+        .order_by(MessageAttachment.position)
+    )
+    return [FileOut.from_model(file) for file in result.scalars().all()]
+
+
 async def build_message_out(
     db: AsyncSession, message: Message, chat: Chat, viewer_id: int
 ) -> MessageOut:
@@ -179,6 +190,7 @@ async def build_message_out(
     reactions = await get_reactions_summary(db, message.id, viewer_id)
     status_value = await message_status(db, message, chat, viewer_id)
     is_deleted = message.deleted_for_all_at is not None
+    attachments = [] if is_deleted else await get_attachments(db, message.id)
 
     return MessageOut(
         message_public_id=message.public_id,
@@ -192,6 +204,7 @@ async def build_message_out(
         created_at=message.created_at,
         status=status_value,
         reactions=[ReactionSummary(**r) for r in reactions],
+        attachments=attachments,
     )
 
 

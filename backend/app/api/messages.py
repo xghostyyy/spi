@@ -15,10 +15,27 @@ from ulid import ULID
 
 from app.api.schemas import MessageOut
 from app.core.deps import get_current_user
-from app.db.models import Message, MessageHidden, MessageReaction, MessageType, User
+from app.db.models import (
+    File,
+    FileKind,
+    Message,
+    MessageAttachment,
+    MessageHidden,
+    MessageReaction,
+    MessageType,
+    User,
+)
 from app.db.session import get_db
 from app.services.chat import build_message_out, get_membership_or_404
 from app.ws.events import broadcast_to_chat
+
+_FILE_KIND_TO_MESSAGE_TYPE: dict[FileKind, MessageType] = {
+    FileKind.image: MessageType.photo,
+    FileKind.video: MessageType.video,
+    FileKind.audio: MessageType.audio,
+    FileKind.voice: MessageType.voice,
+    FileKind.document: MessageType.document,
+}
 
 router = APIRouter(prefix="/chats/{chat_public_id}/messages", tags=["messages"])
 
@@ -32,8 +49,9 @@ _MESSAGE_NOT_FOUND = HTTPException(
 
 class SendMessageBody(BaseModel):
     client_msg_id: uuid.UUID
-    body: str = Field(min_length=1, max_length=8000)
+    body: str | None = Field(default=None, max_length=8000)
     reply_to_public_id: str | None = None
+    file_public_ids: list[str] = Field(default_factory=list, max_length=10)
 
 
 class EditMessageBody(BaseModel):
@@ -98,6 +116,12 @@ async def send_message(
 ) -> MessageOut:
     chat, _member = await get_membership_or_404(db, chat_public_id, user)
 
+    if not (body.body and body.body.strip()) and not body.file_public_ids:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={"code": "empty_message", "message": "Сообщение не может быть пустым"},
+        )
+
     reply_to_id = None
     if body.reply_to_public_id:
         reply_result = await db.execute(
@@ -112,6 +136,27 @@ async def send_message(
                 detail={"code": "reply_not_found", "message": "Цитируемое сообщение не найдено"},
             )
 
+    attachment_files: list[File] = []
+    if body.file_public_ids:
+        files_result = await db.execute(
+            select(File).where(File.public_id.in_(body.file_public_ids), File.owner_id == user.id)
+        )
+        by_public_id = {f.public_id: f for f in files_result.scalars().all()}
+        missing = [fid for fid in body.file_public_ids if fid not in by_public_id]
+        if missing:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail={"code": "file_not_found", "message": "Вложение не найдено"},
+            )
+        attachment_files = [by_public_id[fid] for fid in body.file_public_ids]
+
+    if len(attachment_files) > 1:
+        message_type = MessageType.album
+    elif attachment_files:
+        message_type = _FILE_KIND_TO_MESSAGE_TYPE[attachment_files[0].kind]
+    else:
+        message_type = MessageType.text
+
     now = datetime.now(UTC)
     insert_stmt = (
         pg_insert(Message)
@@ -120,7 +165,7 @@ async def send_message(
             chat_id=chat.id,
             sender_id=user.id,
             client_msg_id=body.client_msg_id,
-            type=MessageType.text,
+            type=message_type,
             body=body.body,
             reply_to_id=reply_to_id,
             created_at=now,
@@ -142,6 +187,12 @@ async def send_message(
         message = existing_result.scalar_one()
         await db.commit()
     else:
+        for position, attachment_file in enumerate(attachment_files):
+            db.add(
+                MessageAttachment(
+                    message_id=message_id, file_id=attachment_file.id, position=position
+                )
+            )
         chat.updated_at = now
         await db.commit()
         message_result = await db.execute(select(Message).where(Message.id == message_id))

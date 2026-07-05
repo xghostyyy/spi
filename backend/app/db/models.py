@@ -1,10 +1,11 @@
 """SQLAlchemy-модели. Должны соответствовать db/schema.sql (см. ADR-004 в docs/DECISIONS.md).
 
-Пока моделируются только таблицы, необходимые для реализованных фаз (0-2):
+Пока моделируются только таблицы, необходимые для реализованных фаз (0-3):
 users, files, email_login_codes, sessions, contacts, blocked_users, chats,
-chat_members, messages, message_reactions, message_hidden, pinned_messages, drafts.
-Остальные таблицы схемы (вложения, опросы, инвайты и т.д.) получат модели
-по мере реализации следующих фаз.
+chat_members, messages, message_reactions, message_hidden, message_attachments,
+message_bookmarks, pinned_messages, drafts.
+Остальные таблицы схемы (опросы, инвайты и т.д.) получат модели по мере
+реализации следующих фаз.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -103,7 +104,9 @@ class File(Base):
     width: Mapped[int | None] = mapped_column()
     height: Mapped[int | None] = mapped_column()
     duration_ms: Mapped[int | None] = mapped_column()
+    waveform: Mapped[list[float] | None] = mapped_column(JSONB)
     thumb_key: Mapped[str | None] = mapped_column(String(512))
+    original_name: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -274,6 +277,9 @@ class Message(Base):
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deleted_for_all_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # generated ALWAYS AS (to_tsvector('russian', ...)) STORED — заполняется Postgres'ом,
+    # приложение никогда в неё не пишет.
+    search_tsv: Mapped[str | None] = mapped_column(TSVECTOR)
 
     sender: Mapped[User | None] = relationship(foreign_keys=[sender_id])
     reply_to: Mapped[Message | None] = relationship(remote_side=[id])
@@ -289,6 +295,32 @@ class MessageReaction(Base):
         BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     emoji: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class MessageAttachment(Base):
+    __tablename__ = "message_attachments"
+
+    message_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("messages.id", ondelete="CASCADE"), primary_key=True
+    )
+    file_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("files.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+
+    file: Mapped[File] = relationship()
+
+
+class MessageBookmark(Base):
+    __tablename__ = "message_bookmarks"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    message_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("messages.id", ondelete="CASCADE"), primary_key=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
