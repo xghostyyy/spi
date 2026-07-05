@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 
 import { ChatListPage } from '../pages/ChatListPage/ChatListPage';
 import styles from './AppLayout.module.css';
+import { useRealtimeSync } from './useRealtimeSync';
 
 /**
  * Десктоп: двухпанельный макет (список слева, содержимое справа) — всегда оба.
@@ -11,6 +12,7 @@ import styles from './AppLayout.module.css';
 export function AppLayout() {
   const { pathname } = useLocation();
   const isDetailRoute = pathname !== '/';
+  useRealtimeSync();
 
   return (
     <div className={styles.root}>

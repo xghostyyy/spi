@@ -1,4 +1,4 @@
-import { apiFetch } from '../../shared/api/client';
+import { apiFetch, resolveMediaUrl } from '../../shared/api/client';
 import type { Contact } from '../../entities/contact/model';
 
 interface ContactDto {
@@ -14,7 +14,7 @@ function fromDto(dto: ContactDto): Contact {
     contactPublicId: dto.contact_public_id,
     username: dto.username,
     displayName: dto.display_name,
-    avatarUrl: dto.avatar_url,
+    avatarUrl: resolveMediaUrl(dto.avatar_url),
     alias: dto.alias,
   };
 }
@@ -25,7 +25,10 @@ export async function listContacts(): Promise<Contact[]> {
 }
 
 export async function addContact(username: string): Promise<Contact> {
-  const res = await apiFetch<ContactDto>('/api/v1/contacts', { method: 'POST', body: { username } });
+  const res = await apiFetch<ContactDto>('/api/v1/contacts', {
+    method: 'POST',
+    body: { username },
+  });
   return fromDto(res);
 }
 

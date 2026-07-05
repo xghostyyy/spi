@@ -11,6 +11,8 @@ export const ru = {
   'chatlist.empty.title': 'Пока нет чатов',
   'chatlist.empty.hint': 'Найдите собеседника по @username и начните переписку',
   'chatlist.savedMessages': 'Сохраненные сообщения',
+  'chatlist.newChatPlaceholder': 'Введите @username и нажмите Enter',
+  'chatlist.you': 'Вы:',
 
   'chat.placeholder': 'Сообщение',
   'chat.selectChat': 'Выберите чат, чтобы начать переписку',
@@ -23,6 +25,8 @@ export const ru = {
   'chat.voiceMessage': 'Голосовое сообщение',
   'chat.call': 'Позвонить',
   'chat.callsSoon': 'Звонки скоро появятся',
+  'chat.deleted': 'Сообщение удалено',
+  'chat.replyingTo': 'Ответ',
 
   'auth.title': 'Вход в SPI',
   'auth.emailLabel': 'E-mail',
@@ -61,6 +65,9 @@ export const ru = {
   'common.loading': 'Загрузка…',
   'common.add': 'Добавить',
   'common.remove': 'Удалить',
+  'common.reply': 'Ответить',
+  'common.deleteForAll': 'Удалить у всех',
+  'common.deleteForMe': 'Удалить у себя',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

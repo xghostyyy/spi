@@ -1,3 +1,4 @@
+import { resolveMediaUrl } from '../../shared/api/client';
 import type { User } from './model';
 
 /** Форма пользователя, как её отдаёт backend (snake_case). */
@@ -21,7 +22,7 @@ export function userFromDto(dto: UserDto): User {
     username: dto.username,
     displayName: dto.display_name,
     bio: dto.bio,
-    avatarUrl: dto.avatar_url,
+    avatarUrl: resolveMediaUrl(dto.avatar_url),
     theme: dto.theme,
     locale: dto.locale,
     privacyLastSeen: dto.privacy_last_seen,

@@ -13,6 +13,8 @@ export const en: Record<TranslationKey, string> = {
   'chatlist.empty.title': 'No chats yet',
   'chatlist.empty.hint': 'Find a person by @username and start chatting',
   'chatlist.savedMessages': 'Saved Messages',
+  'chatlist.newChatPlaceholder': 'Enter @username and press Enter',
+  'chatlist.you': 'You:',
 
   'chat.placeholder': 'Message',
   'chat.selectChat': 'Select a chat to start messaging',
@@ -25,6 +27,8 @@ export const en: Record<TranslationKey, string> = {
   'chat.voiceMessage': 'Voice message',
   'chat.call': 'Call',
   'chat.callsSoon': 'Calls are coming soon',
+  'chat.deleted': 'Message deleted',
+  'chat.replyingTo': 'Reply',
 
   'auth.title': 'Sign in to SPI',
   'auth.emailLabel': 'E-mail',
@@ -63,4 +67,7 @@ export const en: Record<TranslationKey, string> = {
   'common.loading': 'Loading…',
   'common.add': 'Add',
   'common.remove': 'Remove',
+  'common.reply': 'Reply',
+  'common.deleteForAll': 'Delete for everyone',
+  'common.deleteForMe': 'Delete for me',
 };

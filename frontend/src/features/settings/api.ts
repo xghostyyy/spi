@@ -33,7 +33,8 @@ export async function checkUsernameAvailable(username: string): Promise<boolean>
   return res.available;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
+const API_BASE_URL =
+  (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 
 export async function uploadAvatar(file: File): Promise<User> {
   const form = new FormData();

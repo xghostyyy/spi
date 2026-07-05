@@ -122,3 +122,47 @@ export function DoubleCheckIcon({ size, className }: IconProps) {
     </svg>
   );
 }
+
+export function ReplyIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <polyline points="9 10 4 15 9 20" />
+      <path d="M4 15h11a5 5 0 0 0 5-5V4" />
+    </svg>
+  );
+}
+
+export function TrashIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <polyline points="4 7 20 7" />
+      <path d="M6 7l1 14h10l1-14M10 11v6M14 11v6M9 7V4h6v3" />
+    </svg>
+  );
+}
+
+export function HeartIcon({ size, className, filled }: IconProps & { filled?: boolean }) {
+  return (
+    <svg {...base(size)} className={className} fill={filled ? 'currentColor' : 'none'}>
+      <path d="M12 20.5S3.5 15 3.5 8.9A4.4 4.4 0 0 1 12 6.5a4.4 4.4 0 0 1 8.5 2.4c0 6.1-8.5 11.6-8.5 11.6z" />
+    </svg>
+  );
+}
+
+export function SendIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <line x1="21" y1="3" x2="10" y2="14" />
+      <path d="M21 3 14 21l-3.5-7L3 10z" />
+    </svg>
+  );
+}
+
+export function CloseIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </svg>
+  );
+}

@@ -8,7 +8,11 @@ interface AuthResponse {
 }
 
 export async function requestLoginCode(email: string): Promise<void> {
-  await apiFetch<void>('/api/v1/auth/request-code', { method: 'POST', body: { email }, skipAuth: true });
+  await apiFetch<void>('/api/v1/auth/request-code', {
+    method: 'POST',
+    body: { email },
+    skipAuth: true,
+  });
 }
 
 export async function verifyLoginCode(
@@ -24,7 +28,10 @@ export async function verifyLoginCode(
 }
 
 export async function refreshSession(): Promise<{ user: User; token: string }> {
-  const res = await apiFetch<AuthResponse>('/api/v1/auth/refresh', { method: 'POST', skipAuth: true });
+  const res = await apiFetch<AuthResponse>('/api/v1/auth/refresh', {
+    method: 'POST',
+    skipAuth: true,
+  });
   return { user: userFromDto(res.user), token: res.access_token };
 }
 
