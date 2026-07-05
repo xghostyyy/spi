@@ -1,28 +1,45 @@
-# SPI Messenger — стартовый пакет документации
+# SPI Messenger
 
-Первичная документация для запуска разработки веб-мессенджера SPI через Claude Code.
+Кроссплатформенный веб-мессенджер (PWA, mobile-first). Стек, ТЗ и протоколы — в `docs/`.
 
-## Состав пакета
+## Статус
 
-| Файл | Назначение |
-|---|---|
-| `PROMPT-CLAUDE-CODE.md` | **Готовый промпт** — скопировать в Claude Code и запустить |
-| `docs/01-TZ.md` | Техническое задание: полный функционал, фазы, критерии приёмки |
-| `docs/02-ARCHITECTURE.md` | Архитектура: стек, структура, WS-протокол, профили деплоя |
-| `docs/03-SETUP-DEPLOY.md` | Инструкция: локальный запуск, демо (Vercel+Render+Supabase), VPS с PostgreSQL |
-| `db/schema.sql` | Готовый SQL-скрипт создания БД PostgreSQL 16 |
-| `design/mockups/` | **Сюда положить макеты Figma** (desktop.png, mobile.png) — обязательно до запуска |
+- **Фаза 0 — Каркас:** готово. Монорепо, дизайн-токены, ui-kit, роутинг, CI (lint-test + schema-check).
+- **Фаза 1 — Auth и профиль:** готово. Вход по e-mail-коду, JWT + refresh-сессии, профиль
+  (аватар/имя/био/username), контакты по `@username`, блокировки, тема/язык.
+- **Фаза 2+** — в разработке (см. `docs/01-TZ.md`, раздел 4).
 
-## Порядок запуска
+Журнал решений — `docs/DECISIONS.md`. API — `docs/API.md` (+ `/docs` Swagger UI бэкенда).
 
-1. Создать/открыть GitHub-репозиторий, склонировать, положить в него содержимое этого пакета.
-2. Добавить макеты в `design/mockups/`.
-3. Запустить Claude Code в корне репозитория и вставить промпт из `PROMPT-CLAUDE-CODE.md`.
-4. Claude Code работает по фазам 0–5, коммитит и пушит после каждой фазы. Результат фазы 5 — MVP для показа.
+## Быстрый старт (локально)
 
-## Ключевые решения (кратко)
+```bash
+# Backend
+cd backend
+python -m venv .venv && .venv\Scripts\activate      # Windows; Linux/macOS: source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp ../.env.example ../.env                           # заполнить DATABASE_URL и т.д.
+alembic upgrade head                                 # требует запущенный PostgreSQL 16
+uvicorn app.main:app --reload --port 8000
 
-- **Демо:** фронт на Vercel, FastAPI на Render/Railway (Vercel не держит WebSocket), БД и файлы — Supabase.
-- **Прод:** свой VPS, Docker Compose, **PostgreSQL 16** по `db/schema.sql`. БД одна и та же в демо и проде — переезд это `pg_dump`/`pg_restore` + смена `DATABASE_URL`.
-- **Mobile-first PWA:** установка на домашний экран iPhone, Web Push (iOS 16.4+), offline-режим.
-- Звонки и E2EE — фаза 6 (после MVP), кнопки в UI присутствуют сразу.
+# Frontend (второй терминал)
+cd frontend
+npm install
+npm run dev                                          # http://localhost:5173
+```
+
+Подробности локального запуска, демо-деплоя (Vercel + Render/Railway + Neon Postgres) и
+продакшена на VPS — `docs/03-SETUP-DEPLOY.md`.
+
+## Проверки
+
+```bash
+# Backend
+cd backend && ruff check . && ruff format --check . && mypy app && pytest -q
+
+# Frontend
+cd frontend && npm run lint && npm run typecheck && npm test && npm run build
+```
+
+Тесты backend, требующие PostgreSQL (auth/contacts), проверяются в CI
+(GitHub Actions, сервис-контейнер `postgres:16`) — см. `docs/DECISIONS.md`, ADR-002.

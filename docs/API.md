@@ -25,6 +25,21 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
 
 *(Таблица пополняется по мере реализации фаз; актуальный источник истины — `/openapi.json`.)*
 
+## Реализовано (Фаза 1)
+
+- `POST /api/v1/auth/request-code` — код на e-mail (в dev — только в лог сервера).
+- `POST /api/v1/auth/verify-code` — код → `access_token` (в теле) + `spi_refresh` (httpOnly cookie).
+- `POST /api/v1/auth/refresh` — по cookie выдаёт новый `access_token` и ротирует cookie.
+- `POST /api/v1/auth/logout` — отзывает текущую сессию, чистит cookie.
+- `GET/PATCH /api/v1/users/me` — профиль; `GET /api/v1/users/check-username` — проверка занятости.
+- `POST /api/v1/users/me/avatar` — загрузка аватара (multipart), сервер авто-кропит в квадрат 512×512.
+- `GET/POST /api/v1/contacts`, `DELETE /api/v1/contacts/{public_id}` — контакты по `@username`,
+  добавление идемпотентно (`INSERT ... ON CONFLICT`).
+- `GET/POST /api/v1/blocks`, `DELETE /api/v1/blocks/{public_id}` — чёрный список.
+
+Формат ошибок: `{"code": "snake_case_reason", "message": "текст для пользователя"}`
+с соответствующим HTTP-статусом (400/401/403/404/409).
+
 ## WebSocket `/ws`
 
 Одно соединение на клиента. Подключение: короткоживущий ticket, полученный по REST

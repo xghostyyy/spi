@@ -82,9 +82,24 @@ npm run dev                                         # http://localhost:5173
 
 ---
 
-## 3. Демо-деплой (Vercel + Render + Supabase)
+## 3. Демо-деплой (Vercel + Render + Postgres)
 
-### 3.1 Supabase (БД + Storage)
+> См. `docs/DECISIONS.md`, ADR-007: по уточнению заказчика БД для теста поднимается через
+> Vercel Marketplace (Neon Postgres) во вкладке **Storage** проекта на Vercel — это и
+> заменяет отдельный аккаунт Supabase для БД (Storage-файлы пока остаются на
+> `STORAGE_BACKEND=local` на стороне API, либо тоже через Supabase — см. 3.1).
+
+### 3.0 Neon Postgres через Vercel (БД)
+1. В проекте на https://vercel.com → **Storage** → **Create Database** → **Neon** (или
+   **Postgres**, если предложен другой провайдер маркетплейса) → создать в регионе рядом с
+   Render/Railway.
+2. Vercel сгенерирует `DATABASE_URL`/`POSTGRES_URL` — скопировать pooled-подключение,
+   заменить префикс на `postgresql+asyncpg://` для бэкенда.
+3. Эту же строку указать в Environment Variables сервиса на Render/Railway (шаг 3.2) —
+   Vercel-проект фронта эту переменную не использует напрямую (БД нужна только API).
+4. Выполнить миграции: `alembic upgrade head` (Shell на Render или локально с этим `DATABASE_URL`).
+
+### 3.1 Supabase (Storage, опционально)
 1. https://supabase.com → New project (регион EU). Сохранить пароль БД.
 2. Settings → Database → Connection string (URI, режим Session) → это `DATABASE_URL` (заменить префикс на `postgresql+asyncpg://`).
 3. Storage → создать buckets: `avatars` (public), `media` (private).
