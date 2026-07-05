@@ -35,4 +35,5 @@ export interface Message {
   status: MessageStatus;
   reactions: Reaction[];
   attachments: FileAttachment[];
+  bookmarked: boolean;
 }

@@ -5,9 +5,10 @@ import { Link, useParams } from 'react-router-dom';
 import type { Chat } from '../../entities/chat/model';
 import type { FileKind, Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
+import { toggleBookmark } from '../../features/bookmarks/api';
+import { listChats } from '../../features/chats/api';
 import { guessFileKind, uploadFile } from '../../features/files/api';
 import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
-import { listChats } from '../../features/chats/api';
 import {
   deleteMessage,
   editMessage,
@@ -178,6 +179,14 @@ export function ChatPage() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['messages', chatId] }),
   });
 
+  const bookmarkMutation = useMutation({
+    mutationFn: (messagePublicId: string) => toggleBookmark(messagePublicId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
+      void queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+    },
+  });
+
   function handleDraftChange(value: string) {
     setDraft(value);
     if (!chatId) return;
@@ -233,6 +242,9 @@ export function ChatPage() {
     );
   }
 
+  const isSaved = chat?.type === 'saved';
+  const displayTitle = isSaved ? t('chatlist.savedMessages') : (chat?.title ?? '…');
+
   let lastDay = '';
 
   return (
@@ -243,21 +255,18 @@ export function ChatPage() {
             <BackIcon />
           </IconButton>
         </Link>
-        <Avatar
-          name={chat?.title ?? '…'}
-          src={chat?.avatarUrl}
-          size={40}
-          online={chat?.peerOnline}
-        />
+        <Avatar name={displayTitle} src={chat?.avatarUrl} size={40} online={chat?.peerOnline} />
         <div className={styles.headerInfo}>
-          <span className={styles.headerTitle}>{chat?.title ?? '…'}</span>
+          <span className={styles.headerTitle}>{displayTitle}</span>
           <span className={styles.headerStatus}>
-            {typing ? t('chat.typing') : chat ? formatPresence(chat, locale, t) : ''}
+            {typing ? t('chat.typing') : chat && !isSaved ? formatPresence(chat, locale, t) : ''}
           </span>
         </div>
-        <IconButton label={t('chat.call')} onClick={() => alert(t('chat.callsSoon'))}>
-          <PhoneIcon />
-        </IconButton>
+        {!isSaved ? (
+          <IconButton label={t('chat.call')} onClick={() => alert(t('chat.callsSoon'))}>
+            <PhoneIcon />
+          </IconButton>
+        ) : null}
       </header>
 
       <div className={styles.list} ref={listRef}>
@@ -296,6 +305,7 @@ export function ChatPage() {
                   deleteMutation.mutate({ messagePublicId: message.messagePublicId, scope })
                 }
                 onImageClick={setLightboxUrl}
+                onToggleBookmark={() => bookmarkMutation.mutate(message.messagePublicId)}
               />
             </div>
           );

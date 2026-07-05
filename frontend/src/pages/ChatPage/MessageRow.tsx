@@ -4,7 +4,13 @@ import type { Message } from '../../entities/message/model';
 import { useT } from '../../shared/i18n';
 import { Button } from '../../shared/ui/Button';
 import { MessageBubble } from '../../shared/ui/MessageBubble';
-import { PencilIcon, ReplyIcon, TrashIcon } from '../../shared/ui/icons';
+import {
+  BookmarkFilledIcon,
+  BookmarkIcon,
+  PencilIcon,
+  ReplyIcon,
+  TrashIcon,
+} from '../../shared/ui/icons';
 import styles from './ChatPage.module.css';
 import { MessageAttachments } from './MessageAttachments';
 
@@ -18,6 +24,7 @@ interface MessageRowProps {
   onEdit: (body: string) => void;
   onDelete: (scope: 'self' | 'all') => void;
   onImageClick: (url: string) => void;
+  onToggleBookmark: () => void;
 }
 
 function formatTime(iso: string): string {
@@ -34,6 +41,7 @@ export function MessageRow({
   onEdit,
   onDelete,
   onImageClick,
+  onToggleBookmark,
 }: MessageRowProps) {
   const t = useT();
   const [editing, setEditing] = useState(false);
@@ -91,6 +99,16 @@ export function MessageRow({
         >
           <ReplyIcon size={16} />
         </button>
+        {!message.deletedForAll ? (
+          <button
+            type="button"
+            className={styles.actionIcon}
+            onClick={onToggleBookmark}
+            aria-label={t('chatlist.savedMessages')}
+          >
+            {message.bookmarked ? <BookmarkFilledIcon size={16} /> : <BookmarkIcon size={16} />}
+          </button>
+        ) : null}
         {isOwn && !message.deletedForAll ? (
           <button
             type="button"

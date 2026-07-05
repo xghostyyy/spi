@@ -65,6 +65,24 @@
   padding: var(--space-2) var(--space-3);
   text-decoration: none;
   color: inherit;
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.savedIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
 }
 
 .row:hover {

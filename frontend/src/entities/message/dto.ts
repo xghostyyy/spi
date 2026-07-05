@@ -34,6 +34,7 @@ export interface MessageDto {
   status: string;
   reactions: ReactionDto[];
   attachments: FileDto[];
+  bookmarked: boolean;
 }
 
 function reactionFromDto(dto: ReactionDto): Reaction {
@@ -70,5 +71,6 @@ export function messageFromDto(dto: MessageDto): Message {
     status: dto.status as MessageStatus,
     reactions: dto.reactions.map(reactionFromDto),
     attachments: dto.attachments.map(fileFromDto),
+    bookmarked: dto.bookmarked,
   };
 }

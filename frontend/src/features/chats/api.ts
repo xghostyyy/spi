@@ -12,6 +12,11 @@ export async function createDirectChat(username: string): Promise<Chat> {
   return chatFromDto(res);
 }
 
+export async function getSavedChat(): Promise<Chat> {
+  const res = await apiFetch<ChatDto>('/api/v1/chats/saved');
+  return chatFromDto(res);
+}
+
 interface UpdateChatMembershipInput {
   isPinned?: boolean;
   isArchived?: boolean;

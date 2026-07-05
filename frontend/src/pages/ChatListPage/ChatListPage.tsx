@@ -5,13 +5,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Chat } from '../../entities/chat/model';
 import type { Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
-import { createDirectChat, listChats } from '../../features/chats/api';
+import { createDirectChat, getSavedChat, listChats } from '../../features/chats/api';
 import { useT, type TranslationKey } from '../../shared/i18n';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Badge } from '../../shared/ui/Badge';
 import { IconButton } from '../../shared/ui/IconButton';
 import { Input } from '../../shared/ui/Input';
-import { GearIcon, PlusIcon, SearchIcon } from '../../shared/ui/icons';
+import { BookmarkFilledIcon, GearIcon, PlusIcon, SearchIcon } from '../../shared/ui/icons';
 import { useTypingStore } from '../../shared/ws/typingStore';
 import styles from './ChatListPage.module.css';
 
@@ -78,6 +78,44 @@ function ChatRow({ chat }: { chat: Chat }) {
   );
 }
 
+function SavedMessagesRow() {
+  const t = useT();
+  const navigate = useNavigate();
+  const { chatId } = useParams();
+  const queryClient = useQueryClient();
+  const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
+  const saved = chatsQuery.data?.find((c) => c.type === 'saved');
+  const isActive = !!saved && chatId === saved.chatPublicId;
+
+  const openSavedMutation = useMutation({
+    mutationFn: getSavedChat,
+    onSuccess: (chat) => {
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      navigate(`/chat/${chat.chatPublicId}`);
+    },
+  });
+
+  return (
+    <button
+      type="button"
+      className={[styles.row, isActive ? styles.rowActive : ''].join(' ')}
+      onClick={() => {
+        if (saved) navigate(`/chat/${saved.chatPublicId}`);
+        else openSavedMutation.mutate();
+      }}
+    >
+      <span className={styles.savedIcon}>
+        <BookmarkFilledIcon size={22} />
+      </span>
+      <div className={styles.rowBody}>
+        <div className={styles.rowTop}>
+          <span className={styles.rowTitle}>{t('chatlist.savedMessages')}</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export function ChatListPage() {
   const t = useT();
   const navigate = useNavigate();
@@ -104,7 +142,7 @@ export function ChatListPage() {
   });
 
   const filteredChats = useMemo(() => {
-    const chats = chatsQuery.data ?? [];
+    const chats = (chatsQuery.data ?? []).filter((c) => c.type !== 'saved');
     const query = search.trim().toLowerCase();
     if (!query) return chats;
     return chats.filter(
@@ -153,6 +191,8 @@ export function ChatListPage() {
           {createError ? <p className={styles.newChatError}>{createError}</p> : null}
         </form>
       ) : null}
+
+      <SavedMessagesRow />
 
       {filteredChats.length === 0 ? (
         <div className={styles.empty}>
