@@ -40,6 +40,20 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
 Формат ошибок: `{"code": "snake_case_reason", "message": "текст для пользователя"}`
 с соответствующим HTTP-статусом (400/401/403/404/409).
 
+## Реализовано (Фаза 2, только личные чаты)
+
+- `GET/POST /api/v1/chats`, `PATCH /api/v1/chats/{public_id}` — список (превью, unread,
+  pin/archive/mute), создание direct-чата по `@username`.
+- `GET/POST /api/v1/chats/{public_id}/messages` — история (курсор `before`, `limit≤100`),
+  отправка (идемпотентно по `client_msg_id`).
+- `PATCH/DELETE /api/v1/chats/{public_id}/messages/{message_public_id}` — правка,
+  удаление (`scope=self|all`, `all` — только автор, окно 48ч).
+- `POST .../messages/{message_public_id}/reactions` — тоггл реакции (одна на пользователя).
+- `POST /api/v1/auth/ws-ticket` → `GET /ws?ticket=...` — WS-подключение; `GET
+  /api/v1/sync?since=<ISO-время>` — упрощённая догрузка сообщений после reconnect
+  (см. `docs/DECISIONS.md`, ADR-008: без персистентного event-log).
+- Группы, медиа, поиск, черновики (drafts) и опросы — ещё не реализованы (см. `docs/01-TZ.md`).
+
 ## WebSocket `/ws`
 
 Одно соединение на клиента. Подключение: короткоживущий ticket, полученный по REST
@@ -57,9 +71,9 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
 | `message.deleted` | `message_id`, `chat_id`, scope: `all` |
 | `reaction.updated` | `message_id`, агрегированные реакции |
 | `chat.updated` | изменённые поля чата / членства |
-| `typing` | `chat_id`, `user_id`, `kind: text|voice`, флаг начала/конца |
-| `presence` | `user_id`, `online`, `last_seen_at` |
-| `read.updated` | `chat_id`, `user_id`, `last_read_message_id` |
+| `typing` | `chat_id`, `user_public_id`, `kind: text|voice`, флаг начала/конца |
+| `presence` | `user_public_id`, `online`, `last_seen_at` |
+| `read.updated` | `chat_id`, `user_public_id`, `last_read_message_id` |
 | `draft.updated` | `chat_id`, `body`, `reply_to_id` |
 | `poll.updated` | `message_id`, агрегированные голоса |
 
