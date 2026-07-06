@@ -15,7 +15,7 @@ interface ForwardModalProps {
 export function ForwardModal({ onSelect, onClose }: ForwardModalProps) {
   const t = useT();
   const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
-  const chats = (chatsQuery.data ?? []).filter((c) => c.type === 'direct');
+  const chats = (chatsQuery.data ?? []).filter((c) => c.type !== 'saved');
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -27,17 +27,21 @@ export function ForwardModal({ onSelect, onClose }: ForwardModalProps) {
           </IconButton>
         </div>
         <div className={styles.modalList}>
-          {chats.map((chat) => (
-            <button
-              key={chat.chatPublicId}
-              type="button"
-              className={styles.modalRow}
-              onClick={() => onSelect(chat.chatPublicId)}
-            >
-              <Avatar name={chat.title} src={chat.avatarUrl} size={36} />
-              <span>{chat.title}</span>
-            </button>
-          ))}
+          {chats.length === 0 ? (
+            <p className={styles.mediaEmpty}>{t('chatlist.empty.title')}</p>
+          ) : (
+            chats.map((chat) => (
+              <button
+                key={chat.chatPublicId}
+                type="button"
+                className={styles.modalRow}
+                onClick={() => onSelect(chat.chatPublicId)}
+              >
+                <Avatar name={chat.title} src={chat.avatarUrl} size={36} />
+                <span>{chat.title}</span>
+              </button>
+            ))
+          )}
         </div>
       </div>
     </div>

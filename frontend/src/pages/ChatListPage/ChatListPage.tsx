@@ -286,8 +286,10 @@ export function ChatListPage() {
 
       {filteredChats.length === 0 ? (
         <div className={styles.empty}>
-          <p className={styles.emptyTitle}>{t('chatlist.empty.title')}</p>
-          <p className={styles.emptyHint}>{t('chatlist.empty.hint')}</p>
+          <p className={styles.emptyTitle}>
+            {search.trim() ? t('chatlist.noResults') : t('chatlist.empty.title')}
+          </p>
+          {!search.trim() ? <p className={styles.emptyHint}>{t('chatlist.empty.hint')}</p> : null}
         </div>
       ) : (
         <div className={styles.list}>

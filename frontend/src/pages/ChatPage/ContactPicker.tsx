@@ -27,22 +27,26 @@ export function ContactPicker({ onSelect, onClose }: ContactPickerProps) {
           </IconButton>
         </div>
         <div className={styles.modalList}>
-          {contacts.map((contact) => (
-            <button
-              key={contact.contactPublicId}
-              type="button"
-              className={styles.modalRow}
-              onClick={() =>
-                onSelect({
-                  name: contact.alias ?? contact.displayName,
-                  phone: contact.username ? `@${contact.username}` : '',
-                })
-              }
-            >
-              <Avatar name={contact.displayName} src={contact.avatarUrl} size={36} />
-              <span>{contact.alias ?? contact.displayName}</span>
-            </button>
-          ))}
+          {contacts.length === 0 ? (
+            <p className={styles.mediaEmpty}>{t('settings.noContacts')}</p>
+          ) : (
+            contacts.map((contact) => (
+              <button
+                key={contact.contactPublicId}
+                type="button"
+                className={styles.modalRow}
+                onClick={() =>
+                  onSelect({
+                    name: contact.alias ?? contact.displayName,
+                    phone: contact.username ? `@${contact.username}` : '',
+                  })
+                }
+              >
+                <Avatar name={contact.displayName} src={contact.avatarUrl} size={36} />
+                <span>{contact.alias ?? contact.displayName}</span>
+              </button>
+            ))
+          )}
         </div>
       </div>
     </div>

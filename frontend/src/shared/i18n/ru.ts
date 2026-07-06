@@ -10,6 +10,7 @@ export const ru = {
   'chatlist.newChat': 'Новый чат',
   'chatlist.empty.title': 'Пока нет чатов',
   'chatlist.empty.hint': 'Найдите собеседника по @username и начните переписку',
+  'chatlist.noResults': 'Ничего не найдено',
   'chatlist.savedMessages': 'Сохраненные сообщения',
   'chatlist.newChatPlaceholder': 'Введите @username и нажмите Enter',
   'chatlist.newGroup': 'Новая группа',
@@ -34,6 +35,8 @@ export const ru = {
   'chat.callsSoon': 'Звонки скоро появятся',
   'chat.deleted': 'Сообщение удалено',
   'chat.replyingTo': 'Ответ',
+  'chat.empty.title': 'Пока нет сообщений',
+  'chat.empty.hint': 'Напишите первое сообщение, чтобы начать переписку',
 
   'auth.title': 'Вход в SPI',
   'auth.emailLabel': 'E-mail',

@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-07-06 — ADR-017: Lighthouse PWA ≥ 90 не проверен из этой среды — нет Chrome/headless-браузера
+
+**Решение:** не заявляю фактический Lighthouse-скор — вместо этого зафиксирован чек-лист
+того, что уже сделано для соответствия критериям PWA-инсталлируемости, и явно указано,
+что нужен реальный прогон Lighthouse (Chrome DevTools → Lighthouse, на задеплоенном
+HTTPS-URL) после демо-деплоя.
+
+**Контекст:** в этой среде нет `chrome`/`chromium` бинарника (`which chrome` пусто),
+только `npx lighthouse` (CLI ставится, но самого браузера для аудита нет) — попытка
+реального прогона ничего не даст, а придумывать цифру было бы враньём.
+
+Сделано (проверяемо по коду, не по факту прогона):
+- `manifest.webmanifest`: `name`, `short_name`, `icons` (192/512 + maskable),
+  `start_url`, `display: standalone`, `theme_color`/`background_color` — все поля,
+  которые Lighthouse проверяет для критерия «installable» (ADR-015).
+- Service worker регистрируется и активно перехватывает запросы (`injectManifest`,
+  precache app shell) — критерий «has a registered service worker».
+- `apple-touch-icon`, `theme-color` meta — iOS-специфичные, не входят в сам Lighthouse
+  PWA-скор, но нужны для «Add to Home Screen» на iPhone (ТЗ §1).
+- HTTPS — обеспечивается платформой (Vercel даёт HTTPS по умолчанию), не кодом.
+
+**Последствия:** после демо-деплоя на Vercel нужно руками прогнать Lighthouse
+(Chrome DevTools → Lighthouse → PWA) на реальном HTTPS-адресе и завести отдельную
+задачу, если скор ниже 90 — конкретные причины (например, размер бандла, LCP) можно
+будет увидеть только там, спекулировать бессмысленно.
+
 ## 2026-07-06 — ADR-016: Render остаётся (backend+WS), нельзя свести демо-деплой к «только Vercel + Supabase»
 
 **Решение:** заказчик попросил убрать также и Render, оставив исключительно

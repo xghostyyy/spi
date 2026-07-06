@@ -12,6 +12,7 @@ export const en: Record<TranslationKey, string> = {
   'chatlist.newChat': 'New chat',
   'chatlist.empty.title': 'No chats yet',
   'chatlist.empty.hint': 'Find a person by @username and start chatting',
+  'chatlist.noResults': 'Nothing found',
   'chatlist.savedMessages': 'Saved Messages',
   'chatlist.newChatPlaceholder': 'Enter @username and press Enter',
   'chatlist.newGroup': 'New group',
@@ -36,6 +37,8 @@ export const en: Record<TranslationKey, string> = {
   'chat.callsSoon': 'Calls are coming soon',
   'chat.deleted': 'Message deleted',
   'chat.replyingTo': 'Reply',
+  'chat.empty.title': 'No messages yet',
+  'chat.empty.hint': 'Send the first message to start the conversation',
 
   'auth.title': 'Sign in to SPI',
   'auth.emailLabel': 'E-mail',

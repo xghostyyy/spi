@@ -407,6 +407,12 @@ export function ChatPage() {
       ) : null}
 
       <div className={styles.list} ref={listRef}>
+        {messages.length === 0 && !messagesQuery.isLoading ? (
+          <div className={styles.emptyChat}>
+            <p className={styles.emptyChatTitle}>{t('chat.empty.title')}</p>
+            <p className={styles.emptyChatHint}>{t('chat.empty.hint')}</p>
+          </div>
+        ) : null}
         {messages.map((message) => {
           const showSeparator = dayKey(message.createdAt) !== lastDay;
           lastDay = dayKey(message.createdAt);
