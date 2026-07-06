@@ -216,6 +216,13 @@ async def build_message_out(
         )
         reply_to_public_id = reply_result.scalar_one_or_none()
 
+    forwarded_from_user_public_id = None
+    if message.forwarded_from_user_id:
+        forwarded_user_result = await db.execute(
+            select(User.public_id).where(User.id == message.forwarded_from_user_id)
+        )
+        forwarded_from_user_public_id = forwarded_user_result.scalar_one_or_none()
+
     reactions = await get_reactions_summary(db, message.id, viewer_id)
     status_value = await message_status(db, message, chat, viewer_id)
     is_deleted = message.deleted_for_all_at is not None
@@ -234,7 +241,9 @@ async def build_message_out(
         sender_public_id=sender_public_id,
         type=message.type,
         body=None if is_deleted else message.body,
+        payload=None if is_deleted else message.payload,
         reply_to_public_id=reply_to_public_id,
+        forwarded_from_user_public_id=forwarded_from_user_public_id,
         edited_at=message.edited_at,
         deleted_for_all=is_deleted,
         created_at=message.created_at,

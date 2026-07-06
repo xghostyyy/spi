@@ -16,6 +16,7 @@ from ulid import ULID
 from app.api.schemas import MessageOut
 from app.core.deps import get_current_user
 from app.db.models import (
+    ChatMember,
     File,
     FileKind,
     Message,
@@ -47,11 +48,24 @@ _MESSAGE_NOT_FOUND = HTTPException(
 )
 
 
+class ContactPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    phone: str = Field(min_length=1, max_length=32)
+
+
+class LocationPayload(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
 class SendMessageBody(BaseModel):
     client_msg_id: uuid.UUID
     body: str | None = Field(default=None, max_length=8000)
     reply_to_public_id: str | None = None
     file_public_ids: list[str] = Field(default_factory=list, max_length=10)
+    forward_from_message_public_id: str | None = None
+    contact: ContactPayload | None = None
+    location: LocationPayload | None = None
 
 
 class EditMessageBody(BaseModel):
@@ -119,12 +133,6 @@ async def send_message(
 ) -> MessageOut:
     chat, _member = await get_membership_or_404(db, chat_public_id, user)
 
-    if not (body.body and body.body.strip()) and not body.file_public_ids:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail={"code": "empty_message", "message": "Сообщение не может быть пустым"},
-        )
-
     reply_to_id = None
     if body.reply_to_public_id:
         reply_result = await db.execute(
@@ -139,26 +147,78 @@ async def send_message(
                 detail={"code": "reply_not_found", "message": "Цитируемое сообщение не найдено"},
             )
 
-    attachment_files: list[File] = []
-    if body.file_public_ids:
-        files_result = await db.execute(
-            select(File).where(File.public_id.in_(body.file_public_ids), File.owner_id == user.id)
-        )
-        by_public_id = {f.public_id: f for f in files_result.scalars().all()}
-        missing = [fid for fid in body.file_public_ids if fid not in by_public_id]
-        if missing:
-            raise HTTPException(
-                status.HTTP_404_NOT_FOUND,
-                detail={"code": "file_not_found", "message": "Вложение не найдено"},
-            )
-        attachment_files = [by_public_id[fid] for fid in body.file_public_ids]
+    forwarded_from_msg_id: int | None = None
+    forwarded_from_user_id: int | None = None
+    payload: dict[str, object] | None = None
+    attachments_to_link: list[tuple[int, int]] = []
 
-    if len(attachment_files) > 1:
-        message_type = MessageType.album
-    elif attachment_files:
-        message_type = _FILE_KIND_TO_MESSAGE_TYPE[attachment_files[0].kind]
+    if body.forward_from_message_public_id:
+        source_result = await db.execute(
+            select(Message).where(Message.public_id == body.forward_from_message_public_id)
+        )
+        source = source_result.scalar_one_or_none()
+        if source is None or source.deleted_for_all_at is not None:
+            raise _MESSAGE_NOT_FOUND
+        source_member_result = await db.execute(
+            select(ChatMember).where(
+                ChatMember.chat_id == source.chat_id,
+                ChatMember.user_id == user.id,
+                ChatMember.left_at.is_(None),
+            )
+        )
+        if source_member_result.scalar_one_or_none() is None:
+            raise _MESSAGE_NOT_FOUND
+
+        message_type = source.type
+        final_body = source.body
+        payload = source.payload
+        forwarded_from_msg_id = source.id
+        forwarded_from_user_id = source.sender_id
+        source_attachments_result = await db.execute(
+            select(MessageAttachment.file_id, MessageAttachment.position)
+            .where(MessageAttachment.message_id == source.id)
+            .order_by(MessageAttachment.position)
+        )
+        attachments_to_link = [tuple(row) for row in source_attachments_result.all()]
+    elif body.contact is not None:
+        message_type = MessageType.contact
+        final_body = None
+        payload = body.contact.model_dump()
+    elif body.location is not None:
+        message_type = MessageType.location
+        final_body = None
+        payload = body.location.model_dump()
     else:
-        message_type = MessageType.text
+        if not (body.body and body.body.strip()) and not body.file_public_ids:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail={"code": "empty_message", "message": "Сообщение не может быть пустым"},
+            )
+        final_body = body.body
+
+        attachment_files: list[File] = []
+        if body.file_public_ids:
+            files_result = await db.execute(
+                select(File).where(
+                    File.public_id.in_(body.file_public_ids), File.owner_id == user.id
+                )
+            )
+            by_public_id = {f.public_id: f for f in files_result.scalars().all()}
+            missing = [fid for fid in body.file_public_ids if fid not in by_public_id]
+            if missing:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND,
+                    detail={"code": "file_not_found", "message": "Вложение не найдено"},
+                )
+            attachment_files = [by_public_id[fid] for fid in body.file_public_ids]
+        attachments_to_link = [(f.id, i) for i, f in enumerate(attachment_files)]
+
+        if len(attachment_files) > 1:
+            message_type = MessageType.album
+        elif attachment_files:
+            message_type = _FILE_KIND_TO_MESSAGE_TYPE[attachment_files[0].kind]
+        else:
+            message_type = MessageType.text
 
     now = datetime.now(UTC)
     insert_stmt = (
@@ -169,8 +229,11 @@ async def send_message(
             sender_id=user.id,
             client_msg_id=body.client_msg_id,
             type=message_type,
-            body=body.body,
+            body=final_body,
             reply_to_id=reply_to_id,
+            forwarded_from_msg_id=forwarded_from_msg_id,
+            forwarded_from_user_id=forwarded_from_user_id,
+            payload=payload,
             created_at=now,
         )
         .on_conflict_do_nothing(index_elements=["chat_id", "sender_id", "client_msg_id"])
@@ -190,12 +253,8 @@ async def send_message(
         message = existing_result.scalar_one()
         await db.commit()
     else:
-        for position, attachment_file in enumerate(attachment_files):
-            db.add(
-                MessageAttachment(
-                    message_id=message_id, file_id=attachment_file.id, position=position
-                )
-            )
+        for file_id, position in attachments_to_link:
+            db.add(MessageAttachment(message_id=message_id, file_id=file_id, position=position))
         chat.updated_at = now
         await db.commit()
         message_result = await db.execute(select(Message).where(Message.id == message_id))

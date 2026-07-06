@@ -51,7 +51,9 @@ class MessageOut(BaseModel):
     sender_public_id: str | None
     type: MessageType
     body: str | None
+    payload: dict[str, object] | None
     reply_to_public_id: str | None
+    forwarded_from_user_public_id: str | None
     edited_at: datetime | None
     deleted_for_all: bool
     created_at: datetime

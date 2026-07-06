@@ -74,7 +74,11 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
   сообщения (полнотекстовый, `tsvector`/`russian`, по всем своим чатам).
 - `GET /api/v1/chats/{id}/messages?q=` — тот же полнотекстовый поиск, но внутри чата
   (комбинируется с курсором `before`/`limit`).
-- vCard/геолокация, пересылка — в разработке (см. `docs/01-TZ.md`).
+- `POST .../messages` также принимает `forward_from_message_public_id` (пересылка —
+  копирует body/вложения/тип, проверяет членство в исходном чате) либо `contact`
+  (`{name, phone}`) либо `location` (`{lat, lng}`) — ровно одно из этих трёх взаимоисключающих
+  полей вместе с `body`/`file_public_ids`. `MessageOut` содержит `payload` и
+  `forwarded_from_user_public_id`.
 
 ## WebSocket `/ws`
 
