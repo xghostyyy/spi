@@ -1,11 +1,10 @@
 """SQLAlchemy-модели. Должны соответствовать db/schema.sql (см. ADR-004 в docs/DECISIONS.md).
 
-Пока моделируются только таблицы, необходимые для реализованных фаз (0-3):
+Пока моделируются только таблицы, необходимые для реализованных фаз (0-4):
 users, files, email_login_codes, sessions, contacts, blocked_users, chats,
-chat_members, messages, message_reactions, message_hidden, message_attachments,
-message_bookmarks, pinned_messages, drafts.
-Остальные таблицы схемы (опросы, инвайты и т.д.) получат модели по мере
-реализации следующих фаз.
+chat_members, chat_invites, messages, message_reactions, message_hidden,
+message_attachments, message_bookmarks, pinned_messages, drafts, polls,
+poll_options, poll_votes.
 """
 
 from __future__ import annotations
@@ -251,6 +250,24 @@ class ChatMember(Base):
     user: Mapped[User] = relationship(foreign_keys=[user_id])
 
 
+class ChatInvite(Base):
+    __tablename__ = "chat_invites"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
+    )
+    token: Mapped[str] = mapped_column(CHAR(22), unique=True, nullable=False)
+    created_by: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    max_uses: Mapped[int | None] = mapped_column()
+    used_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class Message(Base):
     __tablename__ = "messages"
     __table_args__ = (UniqueConstraint("chat_id", "sender_id", "client_msg_id"),)
@@ -348,6 +365,41 @@ class PinnedMessage(Base):
         BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     pinned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Poll(Base):
+    __tablename__ = "polls"
+
+    message_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("messages.id", ondelete="CASCADE"), primary_key=True
+    )
+    question: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_anonymous: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    multi_choice: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PollOption(Base):
+    __tablename__ = "poll_options"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    poll_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("polls.message_id", ondelete="CASCADE"), nullable=False
+    )
+    text: Mapped[str] = mapped_column(String(128), nullable=False)
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+
+
+class PollVote(Base):
+    __tablename__ = "poll_votes"
+
+    option_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("poll_options.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class Draft(Base):

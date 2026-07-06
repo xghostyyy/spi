@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
-from app.api.schemas import ChatOut, FileOut, MessageOut, ReactionSummary
+from app.api.schemas import ChatMemberOut, ChatOut, FileOut, MessageOut, ReactionSummary
 from app.db.models import (
     Chat,
     ChatMember,
@@ -20,12 +20,38 @@ from app.db.models import (
     MessageAttachment,
     MessageBookmark,
     MessageReaction,
+    MessageType,
     User,
 )
+from app.ws.events import broadcast_to_chat
+from app.ws.manager import manager
 
 CHAT_NOT_FOUND = HTTPException(
     status.HTTP_404_NOT_FOUND, detail={"code": "chat_not_found", "message": "Чат не найден"}
 )
+FORBIDDEN = HTTPException(
+    status.HTTP_403_FORBIDDEN, detail={"code": "forbidden", "message": "Недостаточно прав"}
+)
+NOT_A_GROUP = HTTPException(
+    status.HTTP_400_BAD_REQUEST, detail={"code": "not_a_group", "message": "Не групповой чат"}
+)
+
+_ADMIN_PERMISSIONS = frozenset(
+    {"can_delete_messages", "can_ban", "can_invite", "can_pin", "can_edit_info"}
+)
+
+
+def has_permission(member: ChatMember, permission: str) -> bool:
+    if member.role == MemberRole.owner:
+        return True
+    if member.role != MemberRole.admin or permission not in _ADMIN_PERMISSIONS:
+        return False
+    return bool(getattr(member, permission))
+
+
+def require_permission(member: ChatMember, permission: str) -> None:
+    if not has_permission(member, permission):
+        raise FORBIDDEN
 
 
 async def get_membership_or_404(
@@ -47,6 +73,76 @@ async def get_membership_or_404(
     if member is None:
         raise CHAT_NOT_FOUND
     return chat, member
+
+
+async def get_member_by_public_id(
+    db: AsyncSession, chat_id: int, user_public_id: str
+) -> tuple[ChatMember, User] | None:
+    result = await db.execute(
+        select(ChatMember, User)
+        .join(User, User.id == ChatMember.user_id)
+        .where(
+            ChatMember.chat_id == chat_id,
+            User.public_id == user_public_id,
+            ChatMember.left_at.is_(None),
+        )
+    )
+    row = result.first()
+    return (row[0], row[1]) if row is not None else None
+
+
+async def list_chat_members(db: AsyncSession, chat_id: int) -> list[ChatMemberOut]:
+    result = await db.execute(
+        select(ChatMember, User)
+        .join(User, User.id == ChatMember.user_id)
+        .where(ChatMember.chat_id == chat_id, ChatMember.left_at.is_(None))
+        .order_by(ChatMember.role, User.display_name)
+    )
+    members_out = []
+    for member, member_user in result.all():
+        members_out.append(
+            ChatMemberOut(
+                user_public_id=member_user.public_id,
+                username=member_user.username,
+                display_name=member_user.display_name,
+                avatar_url=await avatar_url_for(db, member_user.avatar_file_id),
+                role=member.role.value,
+                can_delete_messages=member.can_delete_messages,
+                can_ban=member.can_ban,
+                can_invite=member.can_invite,
+                can_pin=member.can_pin,
+                can_edit_info=member.can_edit_info,
+                online=manager.is_online(member_user.id),
+                last_seen_at=member_user.last_seen_at,
+            )
+        )
+    return members_out
+
+
+async def add_or_reactivate_members(
+    db: AsyncSession, chat_id: int, candidates: list[User], now: datetime
+) -> list[User]:
+    """Добавляет пользователей в группу; для тех, кто ранее вышел/был удалён — реактивирует
+    существующую строку ChatMember (нельзя вставить вторую из-за UNIQUE(chat_id, user_id))."""
+    added: list[User] = []
+    for candidate in candidates:
+        existing_result = await db.execute(
+            select(ChatMember).where(
+                ChatMember.chat_id == chat_id, ChatMember.user_id == candidate.id
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
+        if existing is not None:
+            if existing.left_at is None:
+                continue
+            existing.left_at = None
+            existing.banned_at = None
+            existing.role = MemberRole.member
+            existing.joined_at = now
+        else:
+            db.add(ChatMember(chat_id=chat_id, user_id=candidate.id, joined_at=now))
+        added.append(candidate)
+    return added
 
 
 async def get_or_create_direct_chat(db: AsyncSession, user_a: User, user_b: User) -> Chat:
@@ -150,6 +246,57 @@ async def count_unread(
         stmt = stmt.where(Message.id > last_read_id)
     result = await db.execute(stmt)
     return int(result.scalar_one())
+
+
+async def count_members(db: AsyncSession, chat_id: int) -> int:
+    result = await db.execute(
+        select(func.count(ChatMember.id)).where(
+            ChatMember.chat_id == chat_id, ChatMember.left_at.is_(None)
+        )
+    )
+    return int(result.scalar_one())
+
+
+async def count_unread_mentions(
+    db: AsyncSession,
+    chat_id: int,
+    viewer_id: int,
+    username: str | None,
+    last_read_id: int | None,
+) -> int:
+    if not username:
+        return 0
+    stmt = select(func.count(Message.id)).where(
+        Message.chat_id == chat_id,
+        Message.sender_id != viewer_id,
+        Message.body.ilike(f"%@{username}%"),
+    )
+    if last_read_id is not None:
+        stmt = stmt.where(Message.id > last_read_id)
+    result = await db.execute(stmt)
+    return int(result.scalar_one())
+
+
+async def create_system_message(
+    db: AsyncSession, chat: Chat, event: str, payload: dict[str, object]
+) -> None:
+    """Системное сообщение о событии в группе («X добавил Y» и т.п.), с рассылкой по WS."""
+    now = datetime.now(UTC)
+    message = Message(
+        public_id=str(ULID()),
+        chat_id=chat.id,
+        sender_id=None,
+        type=MessageType.system,
+        payload={"event": event, **payload},
+        created_at=now,
+    )
+    db.add(message)
+    chat.updated_at = now
+    await db.flush()
+    await db.commit()
+
+    out = await build_message_out(db, message, chat, viewer_id=0)
+    await broadcast_to_chat(db, chat.id, "message.new", out.model_dump(mode="json"))
 
 
 async def get_reactions_summary(
@@ -282,15 +429,27 @@ async def build_chat_out(db: AsyncSession, chat: Chat, member: ChatMember, viewe
     )
     unread = await count_unread(db, chat.id, viewer.id, member.last_read_message_id)
 
+    member_count: int | None = None
+    mentions = 0
+    if chat.type == ChatType.group:
+        member_count = await count_members(db, chat.id)
+        mentions = await count_unread_mentions(
+            db, chat.id, viewer.id, viewer.username, member.last_read_message_id
+        )
+
     return ChatOut(
         chat_public_id=chat.public_id,
         type=chat.type.value,
         title=title,
+        description=chat.description if chat.type == ChatType.group else None,
         avatar_url=avatar_url,
         is_pinned=member.is_pinned,
         is_archived=member.is_archived,
         muted_until=member.muted_until,
         unread_count=unread,
+        mentions_count=mentions,
+        member_count=member_count,
+        my_role=member.role.value if chat.type == ChatType.group else None,
         last_message=last_message_out,
         peer_public_id=peer_public_id,
         peer_username=peer_username,

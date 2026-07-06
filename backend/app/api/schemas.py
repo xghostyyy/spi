@@ -92,15 +92,34 @@ class UserOut(BaseModel):
         )
 
 
+class ChatMemberOut(BaseModel):
+    user_public_id: str
+    username: str | None
+    display_name: str
+    avatar_url: str | None
+    role: str
+    can_delete_messages: bool
+    can_ban: bool
+    can_invite: bool
+    can_pin: bool
+    can_edit_info: bool
+    online: bool
+    last_seen_at: datetime | None
+
+
 class ChatOut(BaseModel):
     chat_public_id: str
     type: str
     title: str
+    description: str | None
     avatar_url: str | None
     is_pinned: bool
     is_archived: bool
     muted_until: datetime | None
     unread_count: int
+    mentions_count: int
+    member_count: int | None
+    my_role: str | None
     last_message: MessageOut | None
     peer_public_id: str | None
     peer_username: str | None

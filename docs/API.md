@@ -80,6 +80,26 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
   полей вместе с `body`/`file_public_ids`. `MessageOut` содержит `payload` и
   `forwarded_from_user_public_id`.
 
+## Реализовано (Фаза 4, группы — в процессе)
+
+- `POST /api/v1/chats/group` — создание группы (`title`, `description?`, `member_usernames[]`),
+  создатель становится `owner`.
+- `GET /api/v1/chats/{id}/members` — список участников (роль, права admin-флагов, online).
+- `POST /api/v1/chats/{id}/members` — добавление участников по `@username` (нужно `can_invite`);
+  ре-приглашение вышедшего восстанавливает его же строку `chat_members` (UNIQUE(chat_id,user_id)).
+- `DELETE /api/v1/chats/{id}/members/{user_public_id}` — выход из группы (`self`) либо кик
+  (нужно `can_ban`); владельца кикнуть нельзя; владелец не может выйти, пока есть другие участники
+  (`400 owner_must_transfer`).
+- `PATCH /api/v1/chats/{id}/members/{user_public_id}` — смена роли (`admin`/`member`) и
+  admin-флагов (`can_delete_messages`/`can_ban`/`can_invite`/`can_pin`/`can_edit_info`) —
+  только `owner`.
+- `PATCH /api/v1/chats/{id}/info` — переименование/описание группы (нужно `can_edit_info`).
+- Права: `owner` имеет все права неявно; `admin` — по конкретным булевым флагам;
+  `member` — никаких админ-прав. Смена роли/прав генерирует системное сообщение
+  (`type=system`, `sender_id=NULL`, `payload={event, ...}`), рассылается по WS как обычное.
+- `ChatOut` для групп содержит `description`, `member_count`, `my_role`, `mentions_count`
+  (непрочитанные упоминания `@username` считаются только для групп).
+
 ## WebSocket `/ws`
 
 Одно соединение на клиента. Подключение: короткоживущий ticket, полученный по REST
