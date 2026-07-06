@@ -31,7 +31,7 @@ npm install
 npm run dev                                          # http://localhost:5173
 ```
 
-Подробности локального запуска, демо-деплоя (Vercel + Render/Railway + Neon Postgres) и
+Подробности локального запуска, демо-деплоя (Vercel + Render + Supabase) и
 продакшена на VPS — `docs/03-SETUP-DEPLOY.md`.
 
 ## Проверки

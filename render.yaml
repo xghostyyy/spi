@@ -1,7 +1,7 @@
 # Render Blueprint — деплой backend (FastAPI + WebSocket).
 # Использование: Render Dashboard → New → Blueprint → выбрать этот репозиторий.
-# DATABASE_URL (Neon), CORS_ORIGINS и FRONTEND_URL заполняются вручную после
-# создания БД на Vercel Storage / получения URL фронта на Vercel (см. docs/03-SETUP-DEPLOY.md).
+# DATABASE_URL (Supabase), CORS_ORIGINS и FRONTEND_URL заполняются вручную после
+# создания БД на Supabase / получения URL фронта на Vercel (см. docs/03-SETUP-DEPLOY.md).
 services:
   - type: web
     name: spi-api
