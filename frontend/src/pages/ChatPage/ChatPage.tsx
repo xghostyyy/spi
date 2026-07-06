@@ -17,12 +17,15 @@ import { InviteModal } from './InviteModal';
 import { MediaArchiveModal } from './MediaArchiveModal';
 import { PinnedCarousel } from './PinnedCarousel';
 import { PollCreator } from './PollCreator';
+import { ScheduleModal } from './ScheduleModal';
+import { ScheduledMessagesModal } from './ScheduledMessagesModal';
 import { SystemMessageRow } from './SystemMessageRow';
 import {
   closePoll,
   deleteMessage,
   editMessage,
   listMessages,
+  listScheduledMessages,
   sendMessage,
   toggleReaction,
   votePoll,
@@ -34,6 +37,7 @@ import { IconButton } from '../../shared/ui/IconButton';
 import { Input } from '../../shared/ui/Input';
 import {
   BackIcon,
+  ClockIcon,
   CloseIcon,
   ContactIcon,
   LinkIcon,
@@ -111,6 +115,8 @@ export function ChatPage() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [showMediaArchive, setShowMediaArchive] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showScheduledList, setShowScheduledList] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -165,6 +171,28 @@ export function ChatPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
       void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+
+  const scheduledQuery = useQuery({
+    queryKey: ['scheduled', chatId],
+    queryFn: () => listScheduledMessages(chatId!),
+    enabled: !!chatId,
+  });
+
+  const scheduleSendMutation = useMutation({
+    mutationFn: (isoDateTime: string) =>
+      sendMessage(chatId!, {
+        clientMsgId: crypto.randomUUID(),
+        body: draft.trim(),
+        replyToPublicId: replyTo?.messagePublicId,
+        scheduledAt: isoDateTime,
+      }),
+    onSuccess: () => {
+      setDraft('');
+      setReplyTo(null);
+      setShowScheduleModal(false);
+      void queryClient.invalidateQueries({ queryKey: ['scheduled', chatId] });
     },
   });
 
@@ -388,6 +416,11 @@ export function ChatPage() {
             <LinkIcon />
           </IconButton>
         ) : null}
+        {(scheduledQuery.data?.length ?? 0) > 0 ? (
+          <IconButton label={t('schedule.list.title')} onClick={() => setShowScheduledList(true)}>
+            <ClockIcon />
+          </IconButton>
+        ) : null}
         {!isSaved ? (
           <IconButton label={t('chat.call')} onClick={() => alert(t('chat.callsSoon'))}>
             <PhoneIcon />
@@ -540,9 +573,14 @@ export function ChatPage() {
               }}
             />
             {draft.trim() ? (
-              <Button variant="primary" size="md" type="button" onClick={handleSend}>
-                <SendIcon size={18} />
-              </Button>
+              <>
+                <IconButton label={t('schedule.title')} onClick={() => setShowScheduleModal(true)}>
+                  <ClockIcon size={18} />
+                </IconButton>
+                <Button variant="primary" size="md" type="button" onClick={handleSend}>
+                  <SendIcon size={18} />
+                </Button>
+              </>
             ) : (
               <IconButton
                 label={t('chat.voiceMessage')}
@@ -627,6 +665,17 @@ export function ChatPage() {
             navigate('/');
           }}
         />
+      ) : null}
+
+      {showScheduleModal ? (
+        <ScheduleModal
+          onClose={() => setShowScheduleModal(false)}
+          onConfirm={(isoDateTime) => scheduleSendMutation.mutate(isoDateTime)}
+        />
+      ) : null}
+
+      {showScheduledList && chatId ? (
+        <ScheduledMessagesModal chatPublicId={chatId} onClose={() => setShowScheduledList(false)} />
       ) : null}
     </div>
   );

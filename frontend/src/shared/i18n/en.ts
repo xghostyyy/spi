@@ -151,4 +151,10 @@ export const en: Record<TranslationKey, string> = {
   'settings.sessions': 'Active sessions',
   'settings.sessions.current': 'this device',
   'settings.sessions.unknownDevice': 'Unknown device',
+
+  'schedule.title': 'Schedule message',
+  'schedule.confirm': 'Schedule',
+  'schedule.list.title': 'Scheduled messages',
+  'schedule.list.empty': 'No scheduled messages',
+  'schedule.reschedule': 'Change time',
 };

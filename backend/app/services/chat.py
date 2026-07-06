@@ -557,6 +557,7 @@ async def build_message_out(
         reactions=[ReactionSummary(**r) for r in reactions],
         attachments=attachments,
         bookmarked=bookmarked,
+        scheduled_at=message.scheduled_at,
     )
 
 

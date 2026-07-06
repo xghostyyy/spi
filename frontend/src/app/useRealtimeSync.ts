@@ -57,6 +57,7 @@ export function useRealtimeSync(): void {
             upsertMessageInList(prev, message),
           );
           void queryClient.invalidateQueries({ queryKey: ['chats'] });
+          void queryClient.invalidateQueries({ queryKey: ['scheduled', message.chatPublicId] });
           break;
         }
         case 'message.deleted': {

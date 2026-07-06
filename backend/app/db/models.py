@@ -1,6 +1,6 @@
 """SQLAlchemy-модели. Должны соответствовать db/schema.sql (см. ADR-004 в docs/DECISIONS.md).
 
-Пока моделируются только таблицы, необходимые для реализованных фаз (0-5):
+Пока моделируются только таблицы, необходимые для реализованных фаз (0-6):
 users, files, email_login_codes, sessions, contacts, blocked_users, chats,
 chat_members, chat_invites, messages, message_reactions, message_hidden,
 message_attachments, message_bookmarks, pinned_messages, drafts, polls,
@@ -297,6 +297,8 @@ class Message(Base):
     # generated ALWAYS AS (to_tsvector('russian', ...)) STORED — заполняется Postgres'ом,
     # приложение никогда в неё не пишет.
     search_tsv: Mapped[str | None] = mapped_column(TSVECTOR)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scheduled_broadcast_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     sender: Mapped[User | None] = relationship(foreign_keys=[sender_id])
     reply_to: Mapped[Message | None] = relationship(remote_side=[id])

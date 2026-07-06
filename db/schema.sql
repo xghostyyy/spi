@@ -203,10 +203,18 @@ CREATE TABLE messages (
     search_tsv    tsvector GENERATED ALWAYS AS (
                     to_tsvector('russian', coalesce(body, ''))
                   ) STORED,
+    -- отложенная отправка: NULL = обычное сообщение; иначе видно только автору,
+    -- пока фоновый воркер не проставит scheduled_broadcast_at и не разошлёт всем
+    -- (см. ADR-012 — новые колонки дописаны в конец физического порядка, после
+    -- search_tsv, т.к. именно туда их поставит ALTER TABLE ADD COLUMN в миграции 0003)
+    scheduled_at            TIMESTAMPTZ,
+    scheduled_broadcast_at  TIMESTAMPTZ,
     UNIQUE (chat_id, sender_id, client_msg_id)
 );
 CREATE INDEX idx_messages_chat ON messages (chat_id, id);    -- пагинация истории
 CREATE INDEX idx_messages_search ON messages USING GIN (search_tsv);
+CREATE INDEX idx_messages_scheduled_pending ON messages (scheduled_at)
+  WHERE scheduled_at IS NOT NULL AND scheduled_broadcast_at IS NULL;
 
 CREATE TABLE message_attachments (
     message_id  BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,

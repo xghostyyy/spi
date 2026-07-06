@@ -12,10 +12,28 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.models import ChatMember, PushSubscription
+from app.db.models import Chat, ChatMember, ChatType, Message, MessageType, PushSubscription, User
 from app.ws.manager import manager
 
 logger = logging.getLogger(__name__)
+
+_PUSH_PREVIEW_BY_TYPE: dict[MessageType, str] = {
+    MessageType.photo: "📷 Фото",
+    MessageType.video: "📹 Видео",
+    MessageType.voice: "🎤 Голосовое сообщение",
+    MessageType.audio: "🎵 Аудио",
+    MessageType.document: "📎 Документ",
+    MessageType.album: "🖼 Альбом",
+    MessageType.contact: "👤 Контакт",
+    MessageType.location: "📍 Геолокация",
+    MessageType.poll: "📊 Опрос",
+}
+
+
+def _push_preview(message_type: MessageType, body: str | None) -> str:
+    if body:
+        return body[:200]
+    return _PUSH_PREVIEW_BY_TYPE.get(message_type, "")
 
 
 def _send_one(subscription_info: dict[str, object], payload: str) -> int | None:
@@ -100,3 +118,11 @@ async def notify_chat_members(
         if manager.is_online(user_id):
             continue
         await send_push_to_user(db, user_id, title, body, chat_public_id)
+
+
+async def notify_message_sent(db: AsyncSession, chat: Chat, message: Message, sender: User) -> None:
+    """Пуш офлайн-участникам о новом (или только что доставленном отложенном) сообщении."""
+    preview = _push_preview(message.type, message.body)
+    title = chat.title if chat.type == ChatType.group else sender.display_name
+    body = f"{sender.display_name}: {preview}" if chat.type == ChatType.group else preview
+    await notify_chat_members(db, chat.id, sender.id, title or "SPI", body, chat.public_id)

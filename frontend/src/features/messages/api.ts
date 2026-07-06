@@ -24,6 +24,7 @@ export async function sendMessage(
       isAnonymous?: boolean;
       multiChoice?: boolean;
     };
+    scheduledAt?: string;
   },
 ): Promise<Message> {
   const res = await apiFetch<MessageDto>(`/api/v1/chats/${chatPublicId}/messages`, {
@@ -44,9 +45,36 @@ export async function sendMessage(
             multi_choice: input.poll.multiChoice ?? false,
           }
         : null,
+      scheduled_at: input.scheduledAt ?? null,
     },
   });
   return messageFromDto(res);
+}
+
+export async function listScheduledMessages(chatPublicId: string): Promise<Message[]> {
+  const res = await apiFetch<MessageDto[]>(`/api/v1/chats/${chatPublicId}/messages/scheduled`);
+  return res.map(messageFromDto);
+}
+
+export async function rescheduleMessage(
+  chatPublicId: string,
+  messagePublicId: string,
+  scheduledAt: string,
+): Promise<Message> {
+  const res = await apiFetch<MessageDto>(
+    `/api/v1/chats/${chatPublicId}/messages/scheduled/${messagePublicId}`,
+    { method: 'PATCH', body: { scheduled_at: scheduledAt } },
+  );
+  return messageFromDto(res);
+}
+
+export async function cancelScheduledMessage(
+  chatPublicId: string,
+  messagePublicId: string,
+): Promise<void> {
+  await apiFetch<void>(`/api/v1/chats/${chatPublicId}/messages/scheduled/${messagePublicId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function votePoll(

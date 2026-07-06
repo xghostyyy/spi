@@ -1,5 +1,8 @@
 """Точка входа FastAPI-приложения SPI Messenger."""
 
+import asyncio
+import contextlib
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -26,10 +29,22 @@ from app.api import (
 )
 from app.core.config import get_settings
 from app.core.limiter import limiter
+from app.services.scheduler import run_scheduler_loop
 from app.ws.router import router as ws_router
 
 APP_VERSION = "0.1.0"
 API_PREFIX = "/api/v1"
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    scheduler_task = asyncio.create_task(run_scheduler_loop())
+    try:
+        yield
+    finally:
+        scheduler_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await scheduler_task
 
 
 async def _http_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -49,6 +64,7 @@ def create_app() -> FastAPI:
         version=APP_VERSION,
         docs_url="/docs",
         openapi_url="/openapi.json",
+        lifespan=_lifespan,
     )
 
     app.add_middleware(

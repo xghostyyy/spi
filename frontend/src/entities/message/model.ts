@@ -65,4 +65,5 @@ export interface Message {
   reactions: Reaction[];
   attachments: FileAttachment[];
   bookmarked: boolean;
+  scheduledAt: string | null;
 }

@@ -149,6 +149,12 @@ export const ru = {
   'settings.sessions': 'Активные сессии',
   'settings.sessions.current': 'это устройство',
   'settings.sessions.unknownDevice': 'Неизвестное устройство',
+
+  'schedule.title': 'Запланировать отправку',
+  'schedule.confirm': 'Запланировать',
+  'schedule.list.title': 'Отложенные сообщения',
+  'schedule.list.empty': 'Нет отложенных сообщений',
+  'schedule.reschedule': 'Изменить время',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

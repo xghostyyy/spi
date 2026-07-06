@@ -17,7 +17,6 @@ from app.api.schemas import MessageOut
 from app.core.deps import get_current_user
 from app.db.models import (
     ChatMember,
-    ChatType,
     File,
     FileKind,
     Message,
@@ -32,27 +31,8 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.services.chat import build_message_out, get_membership_or_404
-from app.services.push import notify_chat_members
+from app.services.push import notify_message_sent
 from app.ws.events import broadcast_to_chat
-
-_PUSH_PREVIEW_BY_TYPE: dict[MessageType, str] = {
-    MessageType.photo: "📷 Фото",
-    MessageType.video: "📹 Видео",
-    MessageType.voice: "🎤 Голосовое сообщение",
-    MessageType.audio: "🎵 Аудио",
-    MessageType.document: "📎 Документ",
-    MessageType.album: "🖼 Альбом",
-    MessageType.contact: "👤 Контакт",
-    MessageType.location: "📍 Геолокация",
-    MessageType.poll: "📊 Опрос",
-}
-
-
-def _push_preview(message_type: MessageType, body: str | None) -> str:
-    if body:
-        return body[:200]
-    return _PUSH_PREVIEW_BY_TYPE.get(message_type, "")
-
 
 _FILE_KIND_TO_MESSAGE_TYPE: dict[FileKind, MessageType] = {
     FileKind.image: MessageType.photo,
@@ -98,6 +78,7 @@ class SendMessageBody(BaseModel):
     contact: ContactPayload | None = None
     location: LocationPayload | None = None
     poll: PollPayload | None = None
+    scheduled_at: datetime | None = None
 
 
 class PollVoteBody(BaseModel):
@@ -133,7 +114,10 @@ async def list_messages(
 ) -> list[MessageOut]:
     chat, _member = await get_membership_or_404(db, chat_public_id, user)
 
-    stmt = select(Message).where(Message.chat_id == chat.id)
+    stmt = select(Message).where(
+        Message.chat_id == chat.id,
+        (Message.scheduled_at.is_(None)) | (Message.scheduled_broadcast_at.is_not(None)),
+    )
     if before:
         before_result = await db.execute(
             select(Message.id).where(Message.public_id == before, Message.chat_id == chat.id)
@@ -168,6 +152,15 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
 ) -> MessageOut:
     chat, _member = await get_membership_or_404(db, chat_public_id, user)
+
+    if body.scheduled_at is not None and body.scheduled_at <= datetime.now(UTC):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "scheduled_at_in_past",
+                "message": "Время отправки должно быть в будущем",
+            },
+        )
 
     reply_to_id = None
     if body.reply_to_public_id:
@@ -282,6 +275,7 @@ async def send_message(
             forwarded_from_user_id=forwarded_from_user_id,
             payload=payload,
             created_at=now,
+            scheduled_at=body.scheduled_at,
         )
         .on_conflict_do_nothing(index_elements=["chat_id", "sender_id", "client_msg_id"])
         .returning(Message.id)
@@ -313,20 +307,16 @@ async def send_message(
             )
             for position, text in enumerate(poll_to_create.options):
                 db.add(PollOption(poll_id=message_id, text=text, position=position))
-        chat.updated_at = now
+        if body.scheduled_at is None:
+            chat.updated_at = now
         await db.commit()
         message_result = await db.execute(select(Message).where(Message.id == message_id))
         message = message_result.scalar_one()
 
     out = await build_message_out(db, message, chat, user.id)
-    if message_id is not None:
+    if message_id is not None and message.scheduled_at is None:
         await broadcast_to_chat(db, chat.id, "message.new", out.model_dump(mode="json"))
-        preview = _push_preview(message.type, message.body)
-        push_title = chat.title if chat.type == ChatType.group else user.display_name
-        push_body = f"{user.display_name}: {preview}" if chat.type == ChatType.group else preview
-        await notify_chat_members(
-            db, chat.id, user.id, push_title or "SPI", push_body, chat.public_id
-        )
+        await notify_message_sent(db, chat, message, user)
     return out
 
 
@@ -531,3 +521,84 @@ async def close_poll(
     out = await build_message_out(db, message, chat, user.id)
     await broadcast_to_chat(db, chat.id, "poll.updated", out.model_dump(mode="json"))
     return out
+
+
+class RescheduleBody(BaseModel):
+    scheduled_at: datetime
+
+
+def _pending_scheduled_filter(chat_id: int, user_id: int):  # type: ignore[no-untyped-def]
+    return (
+        Message.chat_id == chat_id,
+        Message.sender_id == user_id,
+        Message.scheduled_at.is_not(None),
+        Message.scheduled_broadcast_at.is_(None),
+        Message.deleted_for_all_at.is_(None),
+    )
+
+
+@router.get("/scheduled", response_model=list[MessageOut])
+async def list_scheduled_messages(
+    chat_public_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MessageOut]:
+    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+    result = await db.execute(
+        select(Message)
+        .where(*_pending_scheduled_filter(chat.id, user.id))
+        .order_by(Message.scheduled_at)
+    )
+    return [await build_message_out(db, m, chat, user.id) for m in result.scalars()]
+
+
+@router.patch("/scheduled/{message_public_id}", response_model=MessageOut)
+async def reschedule_message(
+    chat_public_id: str,
+    message_public_id: str,
+    body: RescheduleBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageOut:
+    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+    if body.scheduled_at <= datetime.now(UTC):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "scheduled_at_in_past",
+                "message": "Время отправки должно быть в будущем",
+            },
+        )
+    result = await db.execute(
+        select(Message).where(
+            Message.public_id == message_public_id, *_pending_scheduled_filter(chat.id, user.id)
+        )
+    )
+    message = result.scalar_one_or_none()
+    if message is None:
+        raise _MESSAGE_NOT_FOUND
+
+    message.scheduled_at = body.scheduled_at
+    await db.commit()
+    return await build_message_out(db, message, chat, user.id)
+
+
+@router.delete("/scheduled/{message_public_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_scheduled_message(
+    chat_public_id: str,
+    message_public_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+    result = await db.execute(
+        select(Message).where(
+            Message.public_id == message_public_id, *_pending_scheduled_filter(chat.id, user.id)
+        )
+    )
+    message = result.scalar_one_or_none()
+    if message is None:
+        raise _MESSAGE_NOT_FOUND
+
+    await db.delete(message)
+    await db.commit()

@@ -70,6 +70,7 @@ export interface MessageDto {
   reactions: ReactionDto[];
   attachments: FileDto[];
   bookmarked: boolean;
+  scheduled_at: string | null;
 }
 
 function reactionFromDto(dto: ReactionDto): Reaction {
@@ -110,5 +111,6 @@ export function messageFromDto(dto: MessageDto): Message {
     reactions: dto.reactions.map(reactionFromDto),
     attachments: dto.attachments.map(fileFromDto),
     bookmarked: dto.bookmarked,
+    scheduledAt: dto.scheduled_at,
   };
 }

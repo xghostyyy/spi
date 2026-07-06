@@ -78,6 +78,7 @@ class MessageOut(BaseModel):
     reactions: list[ReactionSummary]
     attachments: list[FileOut]
     bookmarked: bool
+    scheduled_at: datetime | None
 
 
 class UserOut(BaseModel):
