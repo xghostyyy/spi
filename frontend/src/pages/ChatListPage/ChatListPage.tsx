@@ -36,6 +36,8 @@ const PREVIEW_KEY_BY_TYPE: Partial<Record<string, TranslationKey>> = {
   audio: 'preview.audio',
   document: 'preview.document',
   album: 'preview.album',
+  sticker: 'preview.sticker',
+  gif: 'preview.gif',
 };
 
 function formatTime(iso: string): string {

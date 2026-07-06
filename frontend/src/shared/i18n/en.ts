@@ -23,6 +23,8 @@ export const en: Record<TranslationKey, string> = {
   'preview.audio': '🎵 Audio',
   'preview.document': '📎 Document',
   'preview.album': '🖼 Album',
+  'preview.sticker': '🖼 Sticker',
+  'preview.gif': '🎞 GIF',
 
   'chat.placeholder': 'Message',
   'chat.selectChat': 'Select a chat to start messaging',
@@ -164,4 +166,7 @@ export const en: Record<TranslationKey, string> = {
   'folders.namePlaceholder': 'Folder name',
   'chatlist.allChats': 'All chats',
   'chatlist.manageFolders': 'Manage folders',
+  'sticker.tab': 'Stickers',
+  'gif.tab': 'GIF',
+  'gif.searchPlaceholder': 'Search GIFs…',
 };

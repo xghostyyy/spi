@@ -69,6 +69,20 @@ class PollPayload(BaseModel):
     multi_choice: bool = False
 
 
+class StickerPayload(BaseModel):
+    pack: str = Field(min_length=1, max_length=64)
+    sticker_id: str = Field(min_length=1, max_length=64)
+    emoji: str = Field(min_length=1, max_length=8)
+    url: str = Field(min_length=1, max_length=1024)
+
+
+class GifPayload(BaseModel):
+    url: str = Field(min_length=1, max_length=1024)
+    preview_url: str | None = Field(default=None, max_length=1024)
+    width: int | None = None
+    height: int | None = None
+
+
 class SendMessageBody(BaseModel):
     client_msg_id: uuid.UUID
     body: str | None = Field(default=None, max_length=8000)
@@ -78,6 +92,8 @@ class SendMessageBody(BaseModel):
     contact: ContactPayload | None = None
     location: LocationPayload | None = None
     poll: PollPayload | None = None
+    sticker: StickerPayload | None = None
+    gif: GifPayload | None = None
     scheduled_at: datetime | None = None
 
 
@@ -224,6 +240,14 @@ async def send_message(
         message_type = MessageType.location
         final_body = None
         payload = body.location.model_dump()
+    elif body.sticker is not None:
+        message_type = MessageType.sticker
+        final_body = None
+        payload = body.sticker.model_dump()
+    elif body.gif is not None:
+        message_type = MessageType.gif
+        final_body = None
+        payload = body.gif.model_dump()
     elif body.poll is not None:
         message_type = MessageType.poll
         final_body = None

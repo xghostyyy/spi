@@ -265,3 +265,14 @@ export function FolderIcon({ size, className }: IconProps) {
     </svg>
   );
 }
+
+export function StickerIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="9" cy="10" r="1" fill="currentColor" />
+      <circle cx="15" cy="10" r="1" fill="currentColor" />
+      <path d="M8 14.5c1 1.2 2.4 1.8 4 1.8s3-0.6 4-1.8" />
+    </svg>
+  );
+}

@@ -21,6 +21,8 @@ export const ru = {
   'preview.audio': '🎵 Аудио',
   'preview.document': '📎 Документ',
   'preview.album': '🖼 Альбом',
+  'preview.sticker': '🖼 Стикер',
+  'preview.gif': '🎞 GIF',
 
   'chat.placeholder': 'Сообщение',
   'chat.selectChat': 'Выберите чат, чтобы начать переписку',
@@ -162,6 +164,9 @@ export const ru = {
   'folders.namePlaceholder': 'Название папки',
   'chatlist.allChats': 'Все чаты',
   'chatlist.manageFolders': 'Управление папками',
+  'sticker.tab': 'Стикеры',
+  'gif.tab': 'GIF',
+  'gif.searchPlaceholder': 'Поиск GIF…',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

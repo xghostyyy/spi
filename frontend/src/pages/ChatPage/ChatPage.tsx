@@ -8,6 +8,7 @@ import { useSessionStore } from '../../entities/user/store';
 import { toggleBookmark } from '../../features/bookmarks/api';
 import { listChats } from '../../features/chats/api';
 import { guessFileKind, uploadFile } from '../../features/files/api';
+import type { GifResult } from '../../features/gifs/api';
 import { listGroupMembers, pinMessage } from '../../features/groups/api';
 import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
 import { ContactPicker } from './ContactPicker';
@@ -19,6 +20,7 @@ import { PinnedCarousel } from './PinnedCarousel';
 import { PollCreator } from './PollCreator';
 import { ScheduleModal } from './ScheduleModal';
 import { ScheduledMessagesModal } from './ScheduledMessagesModal';
+import { StickerGifPicker } from './StickerGifPicker';
 import { SystemMessageRow } from './SystemMessageRow';
 import {
   closePoll,
@@ -31,6 +33,7 @@ import {
   votePoll,
 } from '../../features/messages/api';
 import { pluralRu, useLocaleStore, useT } from '../../shared/i18n';
+import type { StickerDef } from '../../shared/stickers/catalog';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Button } from '../../shared/ui/Button';
 import { IconButton } from '../../shared/ui/IconButton';
@@ -47,6 +50,7 @@ import {
   PhoneIcon,
   PollIcon,
   SendIcon,
+  StickerIcon,
   TrashIcon,
 } from '../../shared/ui/icons';
 import { wsClient } from '../../shared/ws/client';
@@ -117,6 +121,7 @@ export function ChatPage() {
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -284,6 +289,37 @@ export function ChatPage() {
     mutationFn: (location: { lat: number; lng: number }) =>
       sendMessage(chatId!, { clientMsgId: crypto.randomUUID(), location }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+
+  const stickerMutation = useMutation({
+    mutationFn: (sticker: StickerDef) =>
+      sendMessage(chatId!, {
+        clientMsgId: crypto.randomUUID(),
+        sticker: {
+          pack: sticker.pack,
+          stickerId: sticker.id,
+          emoji: sticker.emoji,
+          url: sticker.url,
+        },
+      }),
+    onSuccess: () => {
+      setShowStickerPicker(false);
+      void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+
+  const gifMutation = useMutation({
+    mutationFn: (gif: GifResult) =>
+      sendMessage(chatId!, {
+        clientMsgId: crypto.randomUUID(),
+        gif: { url: gif.url, previewUrl: gif.previewUrl, width: gif.width, height: gif.height },
+      }),
+    onSuccess: () => {
+      setShowStickerPicker(false);
       void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
       void queryClient.invalidateQueries({ queryKey: ['chats'] });
     },
@@ -560,6 +596,9 @@ export function ChatPage() {
             <IconButton label={t('poll.create')} onClick={() => setShowPollCreator(true)}>
               <PollIcon />
             </IconButton>
+            <IconButton label={t('sticker.tab')} onClick={() => setShowStickerPicker(true)}>
+              <StickerIcon />
+            </IconButton>
             <Input
               className={styles.composerInput}
               placeholder={t('chat.placeholder')}
@@ -632,6 +671,14 @@ export function ChatPage() {
 
       {showInviteModal && chatId ? (
         <InviteModal chatPublicId={chatId} onClose={() => setShowInviteModal(false)} />
+      ) : null}
+
+      {showStickerPicker ? (
+        <StickerGifPicker
+          onClose={() => setShowStickerPicker(false)}
+          onSelectSticker={(sticker) => stickerMutation.mutate(sticker)}
+          onSelectGif={(gif) => gifMutation.mutate(gif)}
+        />
       ) : null}
 
       {showPollCreator ? (

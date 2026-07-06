@@ -24,6 +24,8 @@ export async function sendMessage(
       isAnonymous?: boolean;
       multiChoice?: boolean;
     };
+    sticker?: { pack: string; stickerId: string; emoji: string; url: string };
+    gif?: { url: string; previewUrl?: string; width?: number; height?: number };
     scheduledAt?: string;
   },
 ): Promise<Message> {
@@ -43,6 +45,22 @@ export async function sendMessage(
             options: input.poll.options,
             is_anonymous: input.poll.isAnonymous ?? true,
             multi_choice: input.poll.multiChoice ?? false,
+          }
+        : null,
+      sticker: input.sticker
+        ? {
+            pack: input.sticker.pack,
+            sticker_id: input.sticker.stickerId,
+            emoji: input.sticker.emoji,
+            url: input.sticker.url,
+          }
+        : null,
+      gif: input.gif
+        ? {
+            url: input.gif.url,
+            preview_url: input.gif.previewUrl ?? null,
+            width: input.gif.width ?? null,
+            height: input.gif.height ?? null,
           }
         : null,
       scheduled_at: input.scheduledAt ?? null,

@@ -1,6 +1,12 @@
 import { useState } from 'react';
 
-import type { ContactPayload, LocationPayload, Message } from '../../entities/message/model';
+import type {
+  ContactPayload,
+  GifPayload,
+  LocationPayload,
+  Message,
+  StickerPayload,
+} from '../../entities/message/model';
 import { useT } from '../../shared/i18n';
 import { Button } from '../../shared/ui/Button';
 import { MessageBubble } from '../../shared/ui/MessageBubble';
@@ -65,12 +71,41 @@ interface SpecialContentProps {
   isOwn: boolean;
   onVotePoll: (optionPositions: number[]) => void;
   onClosePoll: () => void;
+  onImageClick: (url: string) => void;
 }
 
-function SpecialContent({ message, isOwn, onVotePoll, onClosePoll }: SpecialContentProps) {
+function SpecialContent({
+  message,
+  isOwn,
+  onVotePoll,
+  onClosePoll,
+  onImageClick,
+}: SpecialContentProps) {
   const t = useT();
   if (message.type === 'poll' && message.poll) {
     return <PollView poll={message.poll} isOwn={isOwn} onVote={onVotePoll} onClose={onClosePoll} />;
+  }
+  if (message.type === 'sticker' && message.payload) {
+    const sticker = message.payload as StickerPayload;
+    return (
+      <img
+        src={sticker.url}
+        alt={sticker.emoji}
+        className={styles.stickerImage}
+        onClick={() => onImageClick(sticker.url)}
+      />
+    );
+  }
+  if (message.type === 'gif' && message.payload) {
+    const gif = message.payload as GifPayload;
+    return (
+      <img
+        src={gif.url}
+        alt=""
+        className={styles.mediaImage}
+        onClick={() => onImageClick(gif.url)}
+      />
+    );
   }
   if (message.type === 'contact' && message.payload) {
     const contact = message.payload as ContactPayload;
@@ -254,6 +289,7 @@ export function MessageRow({
               isOwn={isOwn}
               onVotePoll={onVotePoll}
               onClosePoll={onClosePoll}
+              onImageClick={onImageClick}
             />
             <MessageAttachments
               attachments={message.attachments}

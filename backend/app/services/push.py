@@ -27,6 +27,8 @@ _PUSH_PREVIEW_BY_TYPE: dict[MessageType, str] = {
     MessageType.contact: "👤 Контакт",
     MessageType.location: "📍 Геолокация",
     MessageType.poll: "📊 Опрос",
+    MessageType.sticker: "🖼 Стикер",
+    MessageType.gif: "🎞 GIF",
 }
 
 

@@ -32,6 +32,22 @@ export interface LocationPayload {
   lng: number;
 }
 
+/** Поле message.payload передаётся с бэкенда как есть (без camelCase-конвертации),
+ * поэтому имена полей здесь совпадают с сырым JSON, а не с остальным кодом. */
+export interface StickerPayload {
+  pack: string;
+  sticker_id: string;
+  emoji: string;
+  url: string;
+}
+
+export interface GifPayload {
+  url: string;
+  preview_url: string | null;
+  width: number | null;
+  height: number | null;
+}
+
 export interface PollOption {
   position: number;
   text: string;
@@ -54,7 +70,8 @@ export interface Message {
   senderPublicId: string | null;
   type: string;
   body: string | null;
-  payload: ContactPayload | LocationPayload | Record<string, unknown> | null;
+  payload:
+    ContactPayload | LocationPayload | StickerPayload | GifPayload | Record<string, unknown> | null;
   poll: Poll | null;
   replyToPublicId: string | null;
   forwardedFromUserPublicId: string | null;

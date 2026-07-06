@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_subject: str = "mailto:admin@spi-messenger.ru"
 
+    # --- Поиск GIF (Tenor). Пусто = поиск отключён (см. GET /gifs/enabled) ---
+    tenor_api_key: str = ""
+
     # --- Прочее ---
     cors_origins: str = "http://localhost:5173"
     redis_url: str = ""
