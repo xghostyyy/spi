@@ -20,6 +20,7 @@ from app.api import (
     chats,
     contacts,
     files,
+    folders,
     groups,
     messages,
     push,
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(messages.router, prefix=API_PREFIX)
     app.include_router(files.router, prefix=API_PREFIX)
     app.include_router(bookmarks.router, prefix=API_PREFIX)
+    app.include_router(folders.router, prefix=API_PREFIX)
     app.include_router(push.router, prefix=API_PREFIX)
     app.include_router(search.router, prefix=API_PREFIX)
     app.include_router(sync.router, prefix=API_PREFIX)

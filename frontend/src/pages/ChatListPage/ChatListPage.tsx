@@ -6,6 +6,7 @@ import type { Chat } from '../../entities/chat/model';
 import type { Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
 import { createDirectChat, getSavedChat, listChats } from '../../features/chats/api';
+import { listFolders } from '../../features/folders/api';
 import { createGroup } from '../../features/groups/api';
 import { search as searchApi } from '../../features/search/api';
 import { useT, type TranslationKey } from '../../shared/i18n';
@@ -14,9 +15,16 @@ import { Badge } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
 import { IconButton } from '../../shared/ui/IconButton';
 import { Input } from '../../shared/ui/Input';
-import { BookmarkFilledIcon, GearIcon, PlusIcon, SearchIcon } from '../../shared/ui/icons';
+import {
+  BookmarkFilledIcon,
+  FolderIcon,
+  GearIcon,
+  PlusIcon,
+  SearchIcon,
+} from '../../shared/ui/icons';
 import { useTypingStore } from '../../shared/ws/typingStore';
 import styles from './ChatListPage.module.css';
+import { FoldersModal } from './FoldersModal';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SEARCH_MIN_LENGTH = 2;
@@ -149,6 +157,8 @@ export function ChatListPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [groupTitle, setGroupTitle] = useState('');
   const [groupMembers, setGroupMembers] = useState('');
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+  const [showFoldersModal, setShowFoldersModal] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -156,6 +166,9 @@ export function ChatListPage() {
   }, [search]);
 
   const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
+  const foldersQuery = useQuery({ queryKey: ['folders'], queryFn: listFolders });
+  const folders = foldersQuery.data ?? [];
+  const activeFolder = folders.find((f) => f.folderPublicId === activeFolderId) ?? null;
 
   const searchQuery = useQuery({
     queryKey: ['search', debouncedSearch],
@@ -188,7 +201,11 @@ export function ChatListPage() {
   });
 
   const filteredChats = useMemo(() => {
-    const chats = (chatsQuery.data ?? []).filter((c) => c.type !== 'saved');
+    let chats = (chatsQuery.data ?? []).filter((c) => c.type !== 'saved');
+    if (activeFolder) {
+      const allowed = new Set(activeFolder.chatPublicIds);
+      chats = chats.filter((c) => allowed.has(c.chatPublicId));
+    }
     const query = search.trim().toLowerCase();
     if (!query) return chats;
     return chats.filter(
@@ -196,7 +213,7 @@ export function ChatListPage() {
         c.title.toLowerCase().includes(query) ||
         (c.peerUsername ?? '').toLowerCase().includes(query),
     );
-  }, [chatsQuery.data, search]);
+  }, [chatsQuery.data, activeFolder, search]);
 
   return (
     <div className={styles.root}>
@@ -221,6 +238,34 @@ export function ChatListPage() {
           </IconButton>
         </Link>
       </header>
+
+      <div className={styles.folderTabs}>
+        <button
+          type="button"
+          className={[styles.folderTab, activeFolderId === null ? styles.folderTabActive : ''].join(
+            ' ',
+          )}
+          onClick={() => setActiveFolderId(null)}
+        >
+          {t('chatlist.allChats')}
+        </button>
+        {folders.map((folder) => (
+          <button
+            key={folder.folderPublicId}
+            type="button"
+            className={[
+              styles.folderTab,
+              activeFolderId === folder.folderPublicId ? styles.folderTabActive : '',
+            ].join(' ')}
+            onClick={() => setActiveFolderId(folder.folderPublicId)}
+          >
+            {folder.name}
+          </button>
+        ))}
+        <IconButton label={t('chatlist.manageFolders')} onClick={() => setShowFoldersModal(true)}>
+          <FolderIcon size={18} />
+        </IconButton>
+      </div>
 
       {creating === 'choose' ? (
         <div className={styles.newChatChooser}>
@@ -306,6 +351,10 @@ export function ChatListPage() {
             <MessageResultRow key={message.messagePublicId} message={message} />
           ))}
         </div>
+      ) : null}
+
+      {showFoldersModal ? (
+        <FoldersModal folders={folders} onClose={() => setShowFoldersModal(false)} />
       ) : null}
     </div>
   );

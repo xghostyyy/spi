@@ -4,7 +4,7 @@
 users, files, email_login_codes, sessions, contacts, blocked_users, chats,
 chat_members, chat_invites, messages, message_reactions, message_hidden,
 message_attachments, message_bookmarks, pinned_messages, drafts, polls,
-poll_options, poll_votes, push_subscriptions.
+poll_options, poll_votes, push_subscriptions, folders, folder_chats.
 """
 
 from __future__ import annotations
@@ -435,3 +435,27 @@ class PushSubscription(Base):
     p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
     auth: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Folder(Base):
+    __tablename__ = "folders"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    public_id: Mapped[str] = mapped_column(CHAR(26), unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class FolderChat(Base):
+    __tablename__ = "folder_chats"
+
+    folder_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("folders.id", ondelete="CASCADE"), primary_key=True
+    )
+    chat_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("chats.id", ondelete="CASCADE"), primary_key=True
+    )

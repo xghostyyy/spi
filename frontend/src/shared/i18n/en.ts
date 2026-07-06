@@ -157,4 +157,11 @@ export const en: Record<TranslationKey, string> = {
   'schedule.list.title': 'Scheduled messages',
   'schedule.list.empty': 'No scheduled messages',
   'schedule.reschedule': 'Change time',
+  'folders.title': 'Chat folders',
+  'folders.empty': 'No folders yet',
+  'folders.create': 'Create folder',
+  'folders.edit': 'Edit folder',
+  'folders.namePlaceholder': 'Folder name',
+  'chatlist.allChats': 'All chats',
+  'chatlist.manageFolders': 'Manage folders',
 };

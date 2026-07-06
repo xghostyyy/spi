@@ -155,6 +155,13 @@ export const ru = {
   'schedule.list.title': 'Отложенные сообщения',
   'schedule.list.empty': 'Нет отложенных сообщений',
   'schedule.reschedule': 'Изменить время',
+  'folders.title': 'Папки чатов',
+  'folders.empty': 'Пока нет ни одной папки',
+  'folders.create': 'Создать папку',
+  'folders.edit': 'Изменить папку',
+  'folders.namePlaceholder': 'Название папки',
+  'chatlist.allChats': 'Все чаты',
+  'chatlist.manageFolders': 'Управление папками',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

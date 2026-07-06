@@ -306,6 +306,27 @@ CREATE TABLE push_subscriptions (
     UNIQUE (endpoint, user_id)
 );
 
+-- ------------------------------------------------------------
+-- Папки чатов (Фаза 6): пользовательские вкладки-фильтры поверх
+-- общего списка чатов, каждая — произвольное подмножество чатов юзера.
+-- ------------------------------------------------------------
+
+CREATE TABLE folders (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    public_id   CHAR(26)     UNIQUE NOT NULL,
+    user_id     BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        VARCHAR(64)  NOT NULL,
+    position    SMALLINT     NOT NULL,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_folders_user ON folders (user_id, position);
+
+CREATE TABLE folder_chats (
+    folder_id   BIGINT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+    chat_id     BIGINT NOT NULL REFERENCES chats(id)   ON DELETE CASCADE,
+    PRIMARY KEY (folder_id, chat_id)
+);
+
 -- ============================================================
 -- Конец схемы. Демо-данные — в seed.sql
 -- ============================================================

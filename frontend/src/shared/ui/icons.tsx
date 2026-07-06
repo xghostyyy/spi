@@ -257,3 +257,11 @@ export function ClockIcon({ size, className }: IconProps) {
     </svg>
   );
 }
+
+export function FolderIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M3 6.5a1.5 1.5 0 0 1 1.5-1.5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11Z" />
+    </svg>
+  );
+}

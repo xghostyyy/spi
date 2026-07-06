@@ -163,6 +163,13 @@ class ChatOut(BaseModel):
     peer_last_seen_at: datetime | None
 
 
+class FolderOut(BaseModel):
+    folder_public_id: str
+    name: str
+    position: int
+    chat_public_ids: list[str]
+
+
 class SessionOut(BaseModel):
     id: int
     device_label: str | None
