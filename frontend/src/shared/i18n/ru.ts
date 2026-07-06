@@ -133,6 +133,13 @@ export const ru = {
   'group.info.invite': 'Пригласить по ссылке',
   'group.info.description': 'Описание',
   'group.info.editInfo': 'Изменить информацию',
+
+  'settings.push': 'Уведомления',
+  'settings.push.enable': 'Включить push-уведомления',
+  'settings.push.disable': 'Отключить push-уведомления',
+  'settings.push.unsupported': 'Push-уведомления не поддерживаются в этом браузере',
+  'settings.push.denied': 'Уведомления заблокированы в настройках браузера',
+  'settings.push.enabled': 'Push-уведомления включены',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

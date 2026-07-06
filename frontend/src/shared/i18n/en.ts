@@ -135,4 +135,11 @@ export const en: Record<TranslationKey, string> = {
   'group.info.invite': 'Invite via link',
   'group.info.description': 'Description',
   'group.info.editInfo': 'Edit info',
+
+  'settings.push': 'Notifications',
+  'settings.push.enable': 'Enable push notifications',
+  'settings.push.disable': 'Disable push notifications',
+  'settings.push.unsupported': 'Push notifications are not supported in this browser',
+  'settings.push.denied': 'Notifications are blocked in browser settings',
+  'settings.push.enabled': 'Push notifications are enabled',
 };
