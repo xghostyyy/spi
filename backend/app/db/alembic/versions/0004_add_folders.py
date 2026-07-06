@@ -21,7 +21,7 @@ depends_on: Sequence[str] | None = None
 def upgrade() -> None:
     op.create_table(
         "folders",
-        sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+        sa.Column("id", sa.BigInteger(), sa.Identity(always=True), primary_key=True),
         sa.Column("public_id", sa.CHAR(26), nullable=False, unique=True),
         sa.Column(
             "user_id",
