@@ -144,4 +144,8 @@ export const en: Record<TranslationKey, string> = {
   'settings.push.unsupported': 'Push notifications are not supported in this browser',
   'settings.push.denied': 'Notifications are blocked in browser settings',
   'settings.push.enabled': 'Push notifications are enabled',
+
+  'settings.sessions': 'Active sessions',
+  'settings.sessions.current': 'this device',
+  'settings.sessions.unknownDevice': 'Unknown device',
 };

@@ -12,7 +12,7 @@ import { disablePush, enablePush, getPushStatus, type PushSupport } from '../../
 import { useThemeStore, type ThemePref } from '../../shared/theme';
 import { useSessionStore } from '../../entities/user/store';
 import { addContact, listContacts, removeContact } from '../../features/contacts/api';
-import { logout } from '../../features/auth/api';
+import { listSessions, logout, revokeSession } from '../../features/auth/api';
 import { updateProfile, uploadAvatar } from '../../features/settings/api';
 import styles from './SettingsPage.module.css';
 
@@ -47,6 +47,7 @@ export function SettingsPage() {
   }, []);
 
   const contactsQuery = useQuery({ queryKey: ['contacts'], queryFn: listContacts });
+  const sessionsQuery = useQuery({ queryKey: ['sessions'], queryFn: listSessions });
 
   const profileMutation = useMutation({
     mutationFn: () => updateProfile({ displayName, username, bio: bio || null }),
@@ -80,6 +81,18 @@ export function SettingsPage() {
   const pushMutation = useMutation({
     mutationFn: () => (pushStatus === 'subscribed' ? disablePush() : enablePush()),
     onSuccess: setPushStatus,
+  });
+
+  const revokeSessionMutation = useMutation({
+    mutationFn: (sessionId: number) => revokeSession(sessionId),
+    onSuccess: (_data, sessionId) => {
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      const revoked = sessionsQuery.data?.find((s) => s.id === sessionId);
+      if (revoked?.isCurrent) {
+        clearSession();
+        navigate('/auth', { replace: true });
+      }
+    },
   });
 
   async function handleLogout() {
@@ -257,6 +270,33 @@ export function SettingsPage() {
         ) : (
           <p className={styles.staticValue}>{t('settings.noContacts')}</p>
         )}
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>{t('settings.sessions')}</h2>
+        {sessionsQuery.data?.length ? (
+          <ul className={styles.contactList}>
+            {sessionsQuery.data.map((s) => (
+              <li key={s.id} className={styles.contactRow}>
+                <div className={styles.contactInfo}>
+                  <span className={styles.contactName}>
+                    {s.deviceLabel ?? t('settings.sessions.unknownDevice')}
+                    {s.isCurrent ? ` · ${t('settings.sessions.current')}` : ''}
+                  </span>
+                  <span className={styles.contactUsername}>{s.ip}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  type="button"
+                  disabled={revokeSessionMutation.isPending}
+                  onClick={() => revokeSessionMutation.mutate(s.id)}
+                >
+                  {t('common.remove')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
       <section className={styles.section}>

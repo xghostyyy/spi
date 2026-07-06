@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
-from app.api.schemas import UserOut
+from app.api.schemas import SessionOut, UserOut
 from app.core.config import get_settings
 from app.core.deps import get_current_user
 from app.core.limiter import limiter
@@ -248,6 +248,65 @@ async def logout(
                 session.revoked_at = datetime.now(UTC)
                 await db.commit()
     response.delete_cookie(_REFRESH_COOKIE, path=_REFRESH_COOKIE_PATH)
+
+
+def _current_session_id(request: Request) -> int | None:
+    raw = request.cookies.get(_REFRESH_COOKIE)
+    if not raw or "." not in raw:
+        return None
+    session_id_raw, _secret = raw.split(".", 1)
+    return int(session_id_raw) if session_id_raw.isdigit() else None
+
+
+@router.get("/sessions", response_model=list[SessionOut])
+async def list_sessions(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[SessionOut]:
+    current_id = _current_session_id(request)
+    now = datetime.now(UTC)
+    result = await db.execute(
+        select(Session)
+        .where(Session.user_id == user.id, Session.revoked_at.is_(None), Session.expires_at > now)
+        .order_by(Session.last_used_at.desc())
+    )
+    return [
+        SessionOut(
+            id=session.id,
+            device_label=session.device_label,
+            ip=session.ip,
+            created_at=session.created_at,
+            last_used_at=session.last_used_at,
+            is_current=session.id == current_id,
+        )
+        for session in result.scalars().all()
+    ]
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_session(
+    session_id: int,
+    request: Request,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    result = await db.execute(
+        select(Session).where(Session.id == session_id, Session.user_id == user.id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={"code": "session_not_found", "message": "Сессия не найдена"},
+        )
+    if session.revoked_at is None:
+        session.revoked_at = datetime.now(UTC)
+        await db.commit()
+
+    if session_id == _current_session_id(request):
+        response.delete_cookie(_REFRESH_COOKIE, path=_REFRESH_COOKIE_PATH)
 
 
 @router.post("/ws-ticket", response_model=WsTicketResponse)

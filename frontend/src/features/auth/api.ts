@@ -38,3 +38,37 @@ export async function refreshSession(): Promise<{ user: User; token: string }> {
 export async function logout(): Promise<void> {
   await apiFetch<void>('/api/v1/auth/logout', { method: 'POST' });
 }
+
+export interface Session {
+  id: number;
+  deviceLabel: string | null;
+  ip: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  isCurrent: boolean;
+}
+
+interface SessionDto {
+  id: number;
+  device_label: string | null;
+  ip: string | null;
+  created_at: string;
+  last_used_at: string;
+  is_current: boolean;
+}
+
+export async function listSessions(): Promise<Session[]> {
+  const res = await apiFetch<SessionDto[]>('/api/v1/auth/sessions');
+  return res.map((s) => ({
+    id: s.id,
+    deviceLabel: s.device_label,
+    ip: s.ip,
+    createdAt: s.created_at,
+    lastUsedAt: s.last_used_at,
+    isCurrent: s.is_current,
+  }));
+}
+
+export async function revokeSession(sessionId: number): Promise<void> {
+  await apiFetch<void>(`/api/v1/auth/sessions/${sessionId}`, { method: 'DELETE' });
+}

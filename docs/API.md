@@ -112,6 +112,11 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
   `POST/DELETE /api/v1/chats/{id}/messages/{message_id}/pin` — закрепить/открепить
   (нужен `can_pin`; только для групп — `400 not_a_group` для direct/saved). Оба действия
   рассылают `pinned.updated` по WS и создают системное сообщение `message_pinned`.
+- `GET /api/v1/auth/sessions` — активные сессии текущего пользователя (`revoked_at IS NULL`
+  и не истекла), с `is_current` (определяется по `session_id` из httpOnly `spi_refresh`
+  куки текущего запроса, а не из access-токена — он не привязан к сессии). `DELETE
+  /api/v1/auth/sessions/{id}` — отозвать сессию (только свою — 404, если чужая); если
+  отзывается сессия текущего браузера, заодно чистится `spi_refresh` cookie.
 - `GET /api/v1/chats/{id}/export?format=json|html` — выгрузка полной истории чата
   (владелец аккаунта — свои чаты; полный серверный экспорт для администратора не
   реализован, см. ТЗ §2.6 — вне текущего объёма MVP). `json` — структурированный

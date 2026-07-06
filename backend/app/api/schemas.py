@@ -160,3 +160,12 @@ class ChatOut(BaseModel):
     peer_username: str | None
     peer_online: bool
     peer_last_seen_at: datetime | None
+
+
+class SessionOut(BaseModel):
+    id: int
+    device_label: str | None
+    ip: str | None
+    created_at: datetime
+    last_used_at: datetime
+    is_current: bool

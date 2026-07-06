@@ -142,6 +142,10 @@ export const ru = {
   'settings.push.unsupported': 'Push-уведомления не поддерживаются в этом браузере',
   'settings.push.denied': 'Уведомления заблокированы в настройках браузера',
   'settings.push.enabled': 'Push-уведомления включены',
+
+  'settings.sessions': 'Активные сессии',
+  'settings.sessions.current': 'это устройство',
+  'settings.sessions.unknownDevice': 'Неизвестное устройство',
 } as const;
 
 export type TranslationKey = keyof typeof ru;
