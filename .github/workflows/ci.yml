@@ -123,6 +123,13 @@ jobs:
             | grep -v -E '^\\(un)?restrict' > /tmp/migrated.sql
           diff /tmp/reference.sql /tmp/migrated.sql
 
+      - name: Apply db/seed.sql twice (smoke test — must also be idempotent)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d spi_reference -v ON_ERROR_STOP=1 -f db/seed.sql
+          psql -h localhost -U postgres -d spi_reference -v ON_ERROR_STOP=1 -f db/seed.sql
+
   lint-test-frontend:
     name: lint-test (frontend)
     runs-on: ubuntu-latest
