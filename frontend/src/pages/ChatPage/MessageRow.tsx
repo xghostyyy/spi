@@ -37,6 +37,26 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+const MENTION_RE = /@[a-zA-Z][a-zA-Z0-9_]{2,31}/g;
+
+function renderWithMentions(text: string) {
+  const parts = text.split(MENTION_RE);
+  const mentions = text.match(MENTION_RE) ?? [];
+  if (mentions.length === 0) return text;
+  const nodes: (string | JSX.Element)[] = [];
+  parts.forEach((part, i) => {
+    nodes.push(part);
+    if (mentions[i]) {
+      nodes.push(
+        <span key={i} className={styles.mention}>
+          {mentions[i]}
+        </span>,
+      );
+    }
+  });
+  return nodes;
+}
+
 function SpecialContent({ message }: { message: Message }) {
   const t = useT();
   if (message.type === 'contact' && message.payload) {
@@ -220,7 +240,9 @@ export function MessageRow({
               type={message.type}
               onImageClick={onImageClick}
             />
-            {message.body ? <div className={styles.caption}>{message.body}</div> : null}
+            {message.body ? (
+              <div className={styles.caption}>{renderWithMentions(message.body)}</div>
+            ) : null}
           </>
         )}
       </MessageBubble>

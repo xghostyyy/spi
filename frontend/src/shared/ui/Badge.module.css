@@ -16,3 +16,7 @@
 .muted {
   background: var(--color-text-tertiary);
 }
+
+.mention {
+  background: var(--color-text-secondary);
+}

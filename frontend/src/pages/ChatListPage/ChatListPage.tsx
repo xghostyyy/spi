@@ -73,6 +73,7 @@ function ChatRow({ chat }: { chat: Chat }) {
           <span className={[styles.rowPreview, typing ? styles.rowTyping : ''].join(' ')}>
             {preview}
           </span>
+          {chat.mentionsCount > 0 ? <Badge count={chat.mentionsCount} mention /> : null}
           {chat.unreadCount > 0 ? (
             <Badge count={chat.unreadCount} muted={!!chat.mutedUntil} />
           ) : null}

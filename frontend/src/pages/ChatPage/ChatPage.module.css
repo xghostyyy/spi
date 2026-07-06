@@ -371,6 +371,11 @@
   margin-top: var(--space-1);
 }
 
+.mention {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
 .mediaGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
