@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-07-06 — ADR-015: service worker — vite-plugin-pwa с `injectManifest`, не `generateSW`
+
+**Решение:** PWA собирается через `vite-plugin-pwa` (`frontend/vite.config.ts`) в режиме
+`injectManifest` с собственным service worker'ом `frontend/src/sw.ts`, а не декларативным
+`generateSW`. Причина — нужен `workbox-background-sync` (очередь исходящих сообщений при
+отсутствии сети из ТЗ §2.6), а это требует ручного кода воркера, а не только конфигурации
+`runtimeCaching`. `sw.ts` также сразу содержит обработчики `push`/`notificationclick` для
+будущего Web Push (задача PWA-полировки, ADR будет дополнен при реализации бэкенда push).
+
+`sw.ts` исключён из `tsconfig.app.json` (`exclude: ["src/sw.ts"]`), потому что типы
+`ServiceWorkerGlobalScope`/`PushEvent`/`self` из lib `WebWorker` конфликтуют с `DOM` lib,
+используемым остальным приложением; `esbuild` (внутри vite build) транспилирует файл без
+строгой проверки типов — `tsc -b` в CI на нём не спотыкается, а `npm run build` всё равно
+компилирует и бандлит воркер отдельным шагом (лог `PWA v1.3.0 ... Building src/sw.ts`).
+
+`devOptions.enabled: false` — сервис-воркер не активируется в `vite dev` (только в
+собранном `dist/`), поэтому офлайн-кэш и фоновая синхронизация проверяются исключительно
+через `npm run build` + `vite preview`/деплой, не через обычный dev-сервер предпросмотра.
+
+Иконки (`frontend/public/icons/*.png`) сгенерированы одноразовым Node-скриптом на базе
+`sharp` из `frontend/public/icons/source.svg` (сплошной квадрат `#e87b2d` с буквой «S»);
+`sharp` установлен как devDependency временно и удалён сразу после генерации — он не нужен
+в рантайме и не должен постоянно висеть в `package.json` только ради разовой задачи. Если
+понадобится перегенерировать иконки — тот же приём (см. этот ADR) с новым source.svg.
+
 ## 2026-07-06 — ADR-014: права групп — owner неявно всё, admin — по флагам; владелец не может выйти, пока в группе есть кто-то ещё
 
 **Решение:** `has_permission()` (`backend/app/services/chat.py`) даёт `owner` любые права без
