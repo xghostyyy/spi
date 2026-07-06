@@ -9,6 +9,8 @@ import { toggleBookmark } from '../../features/bookmarks/api';
 import { listChats } from '../../features/chats/api';
 import { guessFileKind, uploadFile } from '../../features/files/api';
 import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
+import { ContactPicker } from './ContactPicker';
+import { ForwardModal } from './ForwardModal';
 import {
   deleteMessage,
   editMessage,
@@ -24,6 +26,8 @@ import { Input } from '../../shared/ui/Input';
 import {
   BackIcon,
   CloseIcon,
+  ContactIcon,
+  LocationIcon,
   MicIcon,
   PaperclipIcon,
   PhoneIcon,
@@ -89,6 +93,8 @@ export function ChatPage() {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+  const [showContactPicker, setShowContactPicker] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -187,6 +193,42 @@ export function ChatPage() {
     },
   });
 
+  const forwardMutation = useMutation({
+    mutationFn: ({
+      targetChatPublicId,
+      messagePublicId,
+    }: {
+      targetChatPublicId: string;
+      messagePublicId: string;
+    }) =>
+      sendMessage(targetChatPublicId, {
+        clientMsgId: crypto.randomUUID(),
+        forwardFromMessagePublicId: messagePublicId,
+      }),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ['messages', variables.targetChatPublicId] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+
+  const contactMutation = useMutation({
+    mutationFn: (contact: { name: string; phone: string }) =>
+      sendMessage(chatId!, { clientMsgId: crypto.randomUUID(), contact }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+
+  const locationMutation = useMutation({
+    mutationFn: (location: { lat: number; lng: number }) =>
+      sendMessage(chatId!, { clientMsgId: crypto.randomUUID(), location }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+
   function handleDraftChange(value: string) {
     setDraft(value);
     if (!chatId) return;
@@ -232,6 +274,16 @@ export function ChatPage() {
 
   function handleCancelVoice() {
     voiceRecorder.cancel();
+  }
+
+  function handleSendLocation() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((position) => {
+      locationMutation.mutate({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      });
+    });
   }
 
   if (!chatId) {
@@ -306,6 +358,7 @@ export function ChatPage() {
                 }
                 onImageClick={setLightboxUrl}
                 onToggleBookmark={() => bookmarkMutation.mutate(message.messagePublicId)}
+                onForward={() => setForwardingMessage(message)}
               />
             </div>
           );
@@ -358,6 +411,12 @@ export function ChatPage() {
             >
               <PaperclipIcon />
             </IconButton>
+            <IconButton label={t('common.location')} onClick={handleSendLocation}>
+              <LocationIcon />
+            </IconButton>
+            <IconButton label={t('common.contact')} onClick={() => setShowContactPicker(true)}>
+              <ContactIcon />
+            </IconButton>
             <Input
               className={styles.composerInput}
               placeholder={t('chat.placeholder')}
@@ -398,6 +457,29 @@ export function ChatPage() {
             <CloseIcon />
           </IconButton>
         </div>
+      ) : null}
+
+      {forwardingMessage ? (
+        <ForwardModal
+          onClose={() => setForwardingMessage(null)}
+          onSelect={(targetChatPublicId) => {
+            forwardMutation.mutate({
+              targetChatPublicId,
+              messagePublicId: forwardingMessage.messagePublicId,
+            });
+            setForwardingMessage(null);
+          }}
+        />
+      ) : null}
+
+      {showContactPicker ? (
+        <ContactPicker
+          onClose={() => setShowContactPicker(false)}
+          onSelect={(contact) => {
+            contactMutation.mutate(contact);
+            setShowContactPicker(false);
+          }}
+        />
       ) : null}
     </div>
   );

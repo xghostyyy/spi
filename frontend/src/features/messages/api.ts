@@ -15,6 +15,9 @@ export async function sendMessage(
     body?: string | null;
     replyToPublicId?: string | null;
     filePublicIds?: string[];
+    forwardFromMessagePublicId?: string;
+    contact?: { name: string; phone: string };
+    location?: { lat: number; lng: number };
   },
 ): Promise<Message> {
   const res = await apiFetch<MessageDto>(`/api/v1/chats/${chatPublicId}/messages`, {
@@ -24,6 +27,9 @@ export async function sendMessage(
       body: input.body ?? null,
       reply_to_public_id: input.replyToPublicId ?? null,
       file_public_ids: input.filePublicIds ?? [],
+      forward_from_message_public_id: input.forwardFromMessagePublicId ?? null,
+      contact: input.contact ?? null,
+      location: input.location ?? null,
     },
   });
   return messageFromDto(res);

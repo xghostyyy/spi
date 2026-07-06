@@ -76,4 +76,10 @@ export const en: Record<TranslationKey, string> = {
   'common.reply': 'Reply',
   'common.deleteForAll': 'Delete for everyone',
   'common.deleteForMe': 'Delete for me',
+  'common.forward': 'Forward',
+  'common.forwardTo': 'Forward to chat',
+  'common.forwardedFrom': 'Forwarded from',
+  'common.location': 'Location',
+  'common.contact': 'Contact',
+  'common.openMap': 'Open on map',
 };

@@ -27,7 +27,9 @@ export interface MessageDto {
   sender_public_id: string | null;
   type: string;
   body: string | null;
+  payload: Record<string, unknown> | null;
   reply_to_public_id: string | null;
+  forwarded_from_user_public_id: string | null;
   edited_at: string | null;
   deleted_for_all: boolean;
   created_at: string;
@@ -64,7 +66,9 @@ export function messageFromDto(dto: MessageDto): Message {
     senderPublicId: dto.sender_public_id,
     type: dto.type,
     body: dto.body,
+    payload: dto.payload,
     replyToPublicId: dto.reply_to_public_id,
+    forwardedFromUserPublicId: dto.forwarded_from_user_public_id,
     editedAt: dto.edited_at,
     deletedForAll: dto.deleted_for_all,
     createdAt: dto.created_at,

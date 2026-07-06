@@ -192,3 +192,30 @@ export function FileIcon({ size, className }: IconProps) {
     </svg>
   );
 }
+
+export function ForwardIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <polyline points="15 4 20 9 15 14" />
+      <path d="M20 9H9a5 5 0 0 0-5 5v2" />
+    </svg>
+  );
+}
+
+export function LocationIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 21s-7-6.5-7-11.5a7 7 0 0 1 14 0C19 14.5 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.3" />
+    </svg>
+  );
+}
+
+export function ContactIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M5 20c0-4 3.5-6.5 7-6.5s7 2.5 7 6.5" />
+    </svg>
+  );
+}

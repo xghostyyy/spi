@@ -74,6 +74,12 @@ export const ru = {
   'common.reply': 'Ответить',
   'common.deleteForAll': 'Удалить у всех',
   'common.deleteForMe': 'Удалить у себя',
+  'common.forward': 'Переслать',
+  'common.forwardTo': 'Переслать в чат',
+  'common.forwardedFrom': 'Переслано от',
+  'common.location': 'Геолокация',
+  'common.contact': 'Контакт',
+  'common.openMap': 'Открыть на карте',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

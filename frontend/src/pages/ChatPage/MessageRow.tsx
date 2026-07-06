@@ -1,12 +1,15 @@
 import { useState } from 'react';
 
-import type { Message } from '../../entities/message/model';
+import type { ContactPayload, LocationPayload, Message } from '../../entities/message/model';
 import { useT } from '../../shared/i18n';
 import { Button } from '../../shared/ui/Button';
 import { MessageBubble } from '../../shared/ui/MessageBubble';
 import {
   BookmarkFilledIcon,
   BookmarkIcon,
+  ContactIcon,
+  ForwardIcon,
+  LocationIcon,
   PencilIcon,
   ReplyIcon,
   TrashIcon,
@@ -25,10 +28,45 @@ interface MessageRowProps {
   onDelete: (scope: 'self' | 'all') => void;
   onImageClick: (url: string) => void;
   onToggleBookmark: () => void;
+  onForward: () => void;
 }
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function SpecialContent({ message }: { message: Message }) {
+  const t = useT();
+  if (message.type === 'contact' && message.payload) {
+    const contact = message.payload as ContactPayload;
+    return (
+      <div className={styles.fileCard}>
+        <ContactIcon size={28} />
+        <span className={styles.fileInfo}>
+          <span className={styles.fileName}>{contact.name}</span>
+          <span className={styles.fileSize}>{contact.phone}</span>
+        </span>
+      </div>
+    );
+  }
+  if (message.type === 'location' && message.payload) {
+    const location = message.payload as LocationPayload;
+    return (
+      <a
+        className={styles.fileCard}
+        href={`https://www.google.com/maps?q=${location.lat},${location.lng}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        <LocationIcon size={28} />
+        <span className={styles.fileInfo}>
+          <span className={styles.fileName}>{t('common.location')}</span>
+          <span className={styles.fileSize}>{t('common.openMap')}</span>
+        </span>
+      </a>
+    );
+  }
+  return null;
 }
 
 export function MessageRow({
@@ -42,6 +80,7 @@ export function MessageRow({
   onDelete,
   onImageClick,
   onToggleBookmark,
+  onForward,
 }: MessageRowProps) {
   const t = useT();
   const [editing, setEditing] = useState(false);
@@ -103,6 +142,16 @@ export function MessageRow({
           <button
             type="button"
             className={styles.actionIcon}
+            onClick={onForward}
+            aria-label={t('common.forward')}
+          >
+            <ForwardIcon size={16} />
+          </button>
+        ) : null}
+        {!message.deletedForAll ? (
+          <button
+            type="button"
+            className={styles.actionIcon}
             onClick={onToggleBookmark}
             aria-label={t('chatlist.savedMessages')}
           >
@@ -149,6 +198,10 @@ export function MessageRow({
           <em>{t('chat.deleted')}</em>
         ) : (
           <>
+            {message.forwardedFromUserPublicId ? (
+              <div className={styles.forwardedLabel}>{t('common.forwardedFrom')}</div>
+            ) : null}
+            <SpecialContent message={message} />
             <MessageAttachments
               attachments={message.attachments}
               type={message.type}

@@ -22,13 +22,25 @@ export interface FileAttachment {
   originalName: string | null;
 }
 
+export interface ContactPayload {
+  name: string;
+  phone: string;
+}
+
+export interface LocationPayload {
+  lat: number;
+  lng: number;
+}
+
 export interface Message {
   messagePublicId: string;
   chatPublicId: string;
   senderPublicId: string | null;
   type: string;
   body: string | null;
+  payload: ContactPayload | LocationPayload | Record<string, unknown> | null;
   replyToPublicId: string | null;
+  forwardedFromUserPublicId: string | null;
   editedAt: string | null;
   deletedForAll: boolean;
   createdAt: string;
