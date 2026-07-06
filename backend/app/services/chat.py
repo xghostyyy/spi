@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
@@ -355,20 +356,32 @@ async def count_unread_mentions(
 async def create_system_message(
     db: AsyncSession, chat: Chat, event: str, payload: dict[str, object]
 ) -> None:
-    """Системное сообщение о событии в группе («X добавил Y» и т.п.), с рассылкой по WS."""
+    """Системное сообщение о событии в группе («X добавил Y» и т.п.), с рассылкой по WS.
+
+    Вставка через Core insert(), а не ORM-конструктор Message(...): последний включает
+    в INSERT все смаппленные колонки, включая generated-колонку search_tsv, а Postgres
+    запрещает вставлять в неё явное значение (см. messages.py::send_message — тот же
+    паттерн уже используется там по этой же причине)."""
     now = datetime.now(UTC)
-    message = Message(
-        public_id=str(ULID()),
-        chat_id=chat.id,
-        sender_id=None,
-        type=MessageType.system,
-        payload={"event": event, **payload},
-        created_at=now,
+    insert_stmt = (
+        pg_insert(Message)
+        .values(
+            public_id=str(ULID()),
+            chat_id=chat.id,
+            sender_id=None,
+            type=MessageType.system,
+            payload={"event": event, **payload},
+            created_at=now,
+        )
+        .returning(Message.id)
     )
-    db.add(message)
+    result = await db.execute(insert_stmt)
+    message_id = result.scalar_one()
     chat.updated_at = now
-    await db.flush()
     await db.commit()
+
+    message_result = await db.execute(select(Message).where(Message.id == message_id))
+    message = message_result.scalar_one()
 
     out = await build_message_out(db, message, chat, viewer_id=0)
     await broadcast_to_chat(db, chat.id, "message.new", out.model_dump(mode="json"))
