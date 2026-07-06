@@ -139,6 +139,35 @@
   background: var(--color-bg-hover);
 }
 
+.inviteBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.inviteQr {
+  border-radius: var(--radius-card);
+  background: #fff;
+  padding: var(--space-2);
+}
+
+.inviteLinkRow {
+  width: 100%;
+  overflow-wrap: break-word;
+  text-align: center;
+}
+
+.inviteLink {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.inviteError {
+  color: var(--color-danger);
+}
+
 .messageActions {
   position: absolute;
   top: -4px;

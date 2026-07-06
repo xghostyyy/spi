@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -10,24 +10,34 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
-from app.api.schemas import ChatMemberOut, ChatOut
+from app.api.schemas import ChatInviteOut, ChatMemberOut, ChatOut, InvitePreviewOut
 from app.core.deps import get_current_user
-from app.db.models import Chat, ChatMember, ChatType, MemberRole, User
+from app.db.models import Chat, ChatInvite, ChatMember, ChatType, MemberRole, User
 from app.db.session import get_db
 from app.services.chat import (
     FORBIDDEN,
+    INVITE_EXPIRED,
+    INVITE_NOT_FOUND,
     NOT_A_GROUP,
     add_or_reactivate_members,
+    avatar_url_for,
     build_chat_out,
     count_members,
+    create_invite,
     create_system_message,
+    get_invite_by_token,
     get_member_by_public_id,
     get_membership_or_404,
+    invite_is_valid,
+    join_chat_via_invite,
     list_chat_members,
     require_permission,
 )
 
 router = APIRouter(prefix="/chats", tags=["groups"])
+invite_router = APIRouter(prefix="/invites", tags=["groups"])
+
+_MAX_INVITE_EXPIRY_HOURS = 24 * 30
 
 _MAX_MEMBERS_PER_REQUEST = 50
 
@@ -54,6 +64,23 @@ class UpdateMemberBody(BaseModel):
 class UpdateGroupInfoBody(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=512)
+
+
+class CreateInviteBody(BaseModel):
+    max_uses: int | None = Field(default=None, ge=1)
+    expires_in_hours: int | None = Field(default=None, ge=1, le=_MAX_INVITE_EXPIRY_HOURS)
+
+
+def _invite_out(invite: ChatInvite, chat_public_id: str) -> ChatInviteOut:
+    return ChatInviteOut(
+        token=invite.token,
+        chat_public_id=chat_public_id,
+        max_uses=invite.max_uses,
+        used_count=invite.used_count,
+        expires_at=invite.expires_at,
+        revoked_at=invite.revoked_at,
+        created_at=invite.created_at,
+    )
 
 
 async def _resolve_usernames(
@@ -281,5 +308,111 @@ async def update_group_info(
     await db.commit()
     if changed:
         await create_system_message(db, chat, "info_updated", {"actor": user.public_id})
+
+    return await build_chat_out(db, chat, member, user)
+
+
+@router.post(
+    "/{chat_public_id}/invites", response_model=ChatInviteOut, status_code=status.HTTP_201_CREATED
+)
+async def create_group_invite(
+    chat_public_id: str,
+    body: CreateInviteBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ChatInviteOut:
+    chat, member = await get_membership_or_404(db, chat_public_id, user)
+    _require_group(chat)
+    require_permission(member, "can_invite")
+
+    expires_at = (
+        datetime.now(UTC) + timedelta(hours=body.expires_in_hours)
+        if body.expires_in_hours
+        else None
+    )
+    invite = await create_invite(db, chat, user, body.max_uses, expires_at)
+    await db.commit()
+    return _invite_out(invite, chat.public_id)
+
+
+@router.get("/{chat_public_id}/invites", response_model=list[ChatInviteOut])
+async def list_group_invites(
+    chat_public_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ChatInviteOut]:
+    chat, member = await get_membership_or_404(db, chat_public_id, user)
+    _require_group(chat)
+    require_permission(member, "can_invite")
+
+    result = await db.execute(
+        select(ChatInvite)
+        .where(ChatInvite.chat_id == chat.id)
+        .order_by(ChatInvite.created_at.desc())
+    )
+    return [_invite_out(invite, chat.public_id) for invite in result.scalars().all()]
+
+
+@router.delete("/{chat_public_id}/invites/{token}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_group_invite(
+    chat_public_id: str,
+    token: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    chat, member = await get_membership_or_404(db, chat_public_id, user)
+    _require_group(chat)
+    require_permission(member, "can_invite")
+
+    invite = await get_invite_by_token(db, token)
+    if invite is None or invite.chat_id != chat.id:
+        raise INVITE_NOT_FOUND
+    invite.revoked_at = datetime.now(UTC)
+    await db.commit()
+
+
+@invite_router.get("/{token}", response_model=InvitePreviewOut)
+async def preview_invite(token: str, db: AsyncSession = Depends(get_db)) -> InvitePreviewOut:
+    invite = await get_invite_by_token(db, token)
+    if invite is None:
+        raise INVITE_NOT_FOUND
+
+    chat_result = await db.execute(select(Chat).where(Chat.id == invite.chat_id))
+    chat = chat_result.scalar_one()
+    member_count = await count_members(db, chat.id)
+    return InvitePreviewOut(
+        chat_title=chat.title or "",
+        chat_description=chat.description,
+        member_count=member_count,
+        avatar_url=await avatar_url_for(db, chat.avatar_file_id),
+        valid=invite_is_valid(invite),
+    )
+
+
+@invite_router.post("/{token}/join", response_model=ChatOut)
+async def join_via_invite(
+    token: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ChatOut:
+    invite = await get_invite_by_token(db, token)
+    if invite is None:
+        raise INVITE_NOT_FOUND
+    if not invite_is_valid(invite):
+        raise INVITE_EXPIRED
+
+    chat_result = await db.execute(select(Chat).where(Chat.id == invite.chat_id))
+    chat = chat_result.scalar_one()
+    is_new = (
+        await db.execute(
+            select(ChatMember).where(ChatMember.chat_id == chat.id, ChatMember.user_id == user.id)
+        )
+    ).scalar_one_or_none() is None
+
+    member = await join_chat_via_invite(db, invite, chat, user)
+    await db.commit()
+
+    if is_new:
+        await create_system_message(db, chat, "member_joined_via_invite", {"actor": user.public_id})
 
     return await build_chat_out(db, chat, member, user)

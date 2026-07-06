@@ -59,6 +59,11 @@ def generate_refresh_secret() -> str:
     return secrets.token_urlsafe(48)
 
 
+def generate_invite_token() -> str:
+    """22 URL-safe символа (base64 без паддинга от 16 байт) — под CHAR(22) в chat_invites."""
+    return secrets.token_urlsafe(16)
+
+
 _WS_TICKET_TTL_SECONDS = 60
 
 

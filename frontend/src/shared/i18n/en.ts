@@ -82,4 +82,17 @@ export const en: Record<TranslationKey, string> = {
   'common.location': 'Location',
   'common.contact': 'Contact',
   'common.openMap': 'Open on map',
+
+  'group.membersCount': 'members',
+  'group.join.title': 'Join group',
+  'group.join.invalid': 'This link is invalid or no longer active',
+  'group.join.button': 'Join',
+  'group.join.joining': 'Joining…',
+  'group.join.success': 'You joined the group',
+  'group.join.error': 'Failed to join the group',
+  'group.invite.create': 'Create invite link',
+  'group.invite.copy': 'Copy link',
+  'group.invite.copied': 'Link copied',
+  'group.invite.revoke': 'Revoke',
+  'group.invite.qr': 'QR code',
 };

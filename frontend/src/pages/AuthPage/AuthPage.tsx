@@ -7,6 +7,7 @@ import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
 import { useSessionStore } from '../../entities/user/store';
 import { requestLoginCode, verifyLoginCode } from '../../features/auth/api';
+import { PENDING_INVITE_KEY } from '../JoinInvitePage/JoinInvitePage';
 import styles from './AuthPage.module.css';
 
 type Step = 'email' | 'code';
@@ -43,7 +44,8 @@ export function AuthPage() {
     try {
       const { user, token } = await verifyLoginCode(email.trim(), code.trim());
       setSession(user, token);
-      navigate('/', { replace: true });
+      const pendingInvite = sessionStorage.getItem(PENDING_INVITE_KEY);
+      navigate(pendingInvite ? `/join/${pendingInvite}` : '/', { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Неверный код');
     } finally {

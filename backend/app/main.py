@@ -69,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(blocks.router, prefix=API_PREFIX)
     app.include_router(chats.router, prefix=API_PREFIX)
     app.include_router(groups.router, prefix=API_PREFIX)
+    app.include_router(groups.invite_router, prefix=API_PREFIX)
     app.include_router(messages.router, prefix=API_PREFIX)
     app.include_router(files.router, prefix=API_PREFIX)
     app.include_router(bookmarks.router, prefix=API_PREFIX)

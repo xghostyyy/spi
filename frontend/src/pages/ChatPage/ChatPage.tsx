@@ -11,6 +11,7 @@ import { guessFileKind, uploadFile } from '../../features/files/api';
 import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
 import { ContactPicker } from './ContactPicker';
 import { ForwardModal } from './ForwardModal';
+import { InviteModal } from './InviteModal';
 import {
   deleteMessage,
   editMessage,
@@ -27,6 +28,7 @@ import {
   BackIcon,
   CloseIcon,
   ContactIcon,
+  LinkIcon,
   LocationIcon,
   MicIcon,
   PaperclipIcon,
@@ -95,6 +97,7 @@ export function ChatPage() {
   const [uploading, setUploading] = useState(false);
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [showContactPicker, setShowContactPicker] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -314,6 +317,11 @@ export function ChatPage() {
             {typing ? t('chat.typing') : chat && !isSaved ? formatPresence(chat, locale, t) : ''}
           </span>
         </div>
+        {chat?.type === 'group' ? (
+          <IconButton label={t('group.invite.create')} onClick={() => setShowInviteModal(true)}>
+            <LinkIcon />
+          </IconButton>
+        ) : null}
         {!isSaved ? (
           <IconButton label={t('chat.call')} onClick={() => alert(t('chat.callsSoon'))}>
             <PhoneIcon />
@@ -480,6 +488,10 @@ export function ChatPage() {
             setShowContactPicker(false);
           }}
         />
+      ) : null}
+
+      {showInviteModal && chatId ? (
+        <InviteModal chatPublicId={chatId} onClose={() => setShowInviteModal(false)} />
       ) : null}
     </div>
   );

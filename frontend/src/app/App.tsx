@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { AuthPage } from '../pages/AuthPage/AuthPage';
 import { ChatPage } from '../pages/ChatPage/ChatPage';
+import { JoinInvitePage } from '../pages/JoinInvitePage/JoinInvitePage';
 import { SettingsPage } from '../pages/SettingsPage/SettingsPage';
 import { refreshSession } from '../features/auth/api';
 import { useSessionStore } from '../entities/user/store';
@@ -39,6 +40,7 @@ export function App() {
         <Bootstrap />
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/join/:token" element={<JoinInvitePage />} />
           <Route
             path="/"
             element={

@@ -99,6 +99,15 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
   (`type=system`, `sender_id=NULL`, `payload={event, ...}`), рассылается по WS как обычное.
 - `ChatOut` для групп содержит `description`, `member_count`, `my_role`, `mentions_count`
   (непрочитанные упоминания `@username` считаются только для групп).
+- `POST /api/v1/chats/{id}/invites` — создать пригласительную ссылку (нужен `can_invite`);
+  `max_uses?`, `expires_in_hours?`; токен — 22 URL-safe символа под `t.spi/join/<token>`
+  (фронтенд-роут `/join/:token`, компонент рендерит QR через `qrcode`).
+  `GET .../invites` — список ссылок, `DELETE .../invites/{token}` — отзыв.
+- `GET /api/v1/invites/{token}` — публичный превью (без авторизации): название/описание/
+  число участников группы + `valid` (не отозвана, не истекла, не исчерпан лимит).
+- `POST /api/v1/invites/{token}/join` — вступление по ссылке (нужна авторизация); повторно
+  приглашённый вышедший участник реактивирует свою же строку `chat_members`; для
+  забаненного (`banned_at` не NULL) — `403 banned_from_chat`.
 
 ## WebSocket `/ws`
 

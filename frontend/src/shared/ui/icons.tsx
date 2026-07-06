@@ -219,3 +219,13 @@ export function ContactIcon({ size, className }: IconProps) {
     </svg>
   );
 }
+
+export function LinkIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M9.5 14.5 14.5 9.5" />
+      <path d="M11 6.5 12.3 5.2a3.6 3.6 0 0 1 5.1 5.1L16 11.6" />
+      <path d="M13 17.5 11.7 18.8a3.6 3.6 0 0 1-5.1-5.1L8 12.4" />
+    </svg>
+  );
+}

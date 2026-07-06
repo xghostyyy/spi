@@ -80,6 +80,19 @@ export const ru = {
   'common.location': 'Геолокация',
   'common.contact': 'Контакт',
   'common.openMap': 'Открыть на карте',
+
+  'group.membersCount': 'участников',
+  'group.join.title': 'Вступить в группу',
+  'group.join.invalid': 'Ссылка недействительна или больше не активна',
+  'group.join.button': 'Присоединиться',
+  'group.join.joining': 'Вступаем…',
+  'group.join.success': 'Вы вступили в группу',
+  'group.join.error': 'Не удалось вступить в группу',
+  'group.invite.create': 'Создать ссылку-приглашение',
+  'group.invite.copy': 'Скопировать ссылку',
+  'group.invite.copied': 'Ссылка скопирована',
+  'group.invite.revoke': 'Отозвать',
+  'group.invite.qr': 'QR-код',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

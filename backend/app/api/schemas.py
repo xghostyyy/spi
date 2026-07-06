@@ -107,6 +107,24 @@ class ChatMemberOut(BaseModel):
     last_seen_at: datetime | None
 
 
+class ChatInviteOut(BaseModel):
+    token: str
+    chat_public_id: str
+    max_uses: int | None
+    used_count: int
+    expires_at: datetime | None
+    revoked_at: datetime | None
+    created_at: datetime
+
+
+class InvitePreviewOut(BaseModel):
+    chat_title: str
+    chat_description: str | None
+    member_count: int
+    avatar_url: str | None
+    valid: bool
+
+
 class ChatOut(BaseModel):
     chat_public_id: str
     type: str

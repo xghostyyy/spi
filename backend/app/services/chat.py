@@ -10,8 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
 from app.api.schemas import ChatMemberOut, ChatOut, FileOut, MessageOut, ReactionSummary
+from app.core.security import generate_invite_token
 from app.db.models import (
     Chat,
+    ChatInvite,
     ChatMember,
     ChatType,
     File,
@@ -34,6 +36,17 @@ FORBIDDEN = HTTPException(
 )
 NOT_A_GROUP = HTTPException(
     status.HTTP_400_BAD_REQUEST, detail={"code": "not_a_group", "message": "Не групповой чат"}
+)
+INVITE_NOT_FOUND = HTTPException(
+    status.HTTP_404_NOT_FOUND,
+    detail={"code": "invite_not_found", "message": "Ссылка недействительна"},
+)
+INVITE_EXPIRED = HTTPException(
+    status.HTTP_410_GONE, detail={"code": "invite_expired", "message": "Ссылка больше не активна"}
+)
+BANNED_FROM_CHAT = HTTPException(
+    status.HTTP_403_FORBIDDEN,
+    detail={"code": "banned_from_chat", "message": "Вы были удалены из этого чата"},
 )
 
 _ADMIN_PERMISSIONS = frozenset(
@@ -143,6 +156,68 @@ async def add_or_reactivate_members(
             db.add(ChatMember(chat_id=chat_id, user_id=candidate.id, joined_at=now))
         added.append(candidate)
     return added
+
+
+async def create_invite(
+    db: AsyncSession,
+    chat: Chat,
+    creator: User,
+    max_uses: int | None,
+    expires_at: datetime | None,
+) -> ChatInvite:
+    invite = ChatInvite(
+        chat_id=chat.id,
+        token=generate_invite_token(),
+        created_by=creator.id,
+        max_uses=max_uses,
+        used_count=0,
+        expires_at=expires_at,
+        created_at=datetime.now(UTC),
+    )
+    db.add(invite)
+    await db.flush()
+    return invite
+
+
+async def get_invite_by_token(db: AsyncSession, token: str) -> ChatInvite | None:
+    result = await db.execute(select(ChatInvite).where(ChatInvite.token == token))
+    return result.scalar_one_or_none()
+
+
+def invite_is_valid(invite: ChatInvite) -> bool:
+    if invite.revoked_at is not None:
+        return False
+    if invite.expires_at is not None and invite.expires_at <= datetime.now(UTC):
+        return False
+    return not (invite.max_uses is not None and invite.used_count >= invite.max_uses)
+
+
+async def join_chat_via_invite(
+    db: AsyncSession, invite: ChatInvite, chat: Chat, user: User
+) -> ChatMember:
+    existing_result = await db.execute(
+        select(ChatMember).where(ChatMember.chat_id == chat.id, ChatMember.user_id == user.id)
+    )
+    existing = existing_result.scalar_one_or_none()
+    now = datetime.now(UTC)
+
+    if existing is not None and existing.left_at is None:
+        return existing
+    if existing is not None and existing.banned_at is not None:
+        raise BANNED_FROM_CHAT
+
+    if existing is not None:
+        existing.left_at = None
+        existing.role = MemberRole.member
+        existing.joined_at = now
+        member = existing
+    else:
+        member = ChatMember(chat_id=chat.id, user_id=user.id, joined_at=now)
+        db.add(member)
+
+    invite.used_count += 1
+    await db.flush()
+    return member
 
 
 async def get_or_create_direct_chat(db: AsyncSession, user_a: User, user_b: User) -> Chat:
