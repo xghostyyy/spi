@@ -52,6 +52,18 @@ function formatTime(iso: string): string {
 function previewText(message: Message, t: (key: TranslationKey) => string): string {
   if (message.deletedForAll) return '';
   if (message.body) return message.body;
+  if (message.type === 'call') {
+    const outcome = (message.payload as { outcome?: string } | null)?.outcome;
+    if (
+      outcome === 'answered' ||
+      outcome === 'missed' ||
+      outcome === 'declined' ||
+      outcome === 'canceled'
+    ) {
+      return t(`call.log.${outcome}`);
+    }
+    return '';
+  }
   const key = PREVIEW_KEY_BY_TYPE[message.type];
   return key ? t(key) : '';
 }

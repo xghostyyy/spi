@@ -48,6 +48,12 @@ export interface GifPayload {
   height: number | null;
 }
 
+export interface CallPayload {
+  kind: 'audio' | 'video';
+  outcome: 'answered' | 'missed' | 'declined' | 'canceled';
+  duration_seconds: number | null;
+}
+
 export interface PollOption {
   position: number;
   text: string;
@@ -71,7 +77,13 @@ export interface Message {
   type: string;
   body: string | null;
   payload:
-    ContactPayload | LocationPayload | StickerPayload | GifPayload | Record<string, unknown> | null;
+    | ContactPayload
+    | LocationPayload
+    | StickerPayload
+    | GifPayload
+    | CallPayload
+    | Record<string, unknown>
+    | null;
   poll: Poll | null;
   replyToPublicId: string | null;
   forwardedFromUserPublicId: string | null;

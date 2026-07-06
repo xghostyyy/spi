@@ -79,6 +79,7 @@ class MessageType(enum.StrEnum):
     system = "system"
     sticker = "sticker"
     gif = "gif"
+    call = "call"
 
 
 # create_type=False: типы создаются миграцией (raw SQL db/schema.sql), не моделями.

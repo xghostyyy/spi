@@ -1,0 +1,88 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: rgb(0 0 0 / 80%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
+.connectedCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  width: min(480px, 100vw);
+  height: 100%;
+  justify-content: center;
+}
+
+.peerName {
+  color: #fff;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.status {
+  color: rgb(255 255 255 / 70%);
+  font-size: var(--font-size-base);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.actions button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 15%);
+  color: #fff;
+}
+
+.acceptButton {
+  background: var(--color-success, #4cc35e) !important;
+}
+
+.declineButton {
+  background: var(--color-danger, #e05d7b) !important;
+}
+
+.videoStage {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 3 / 4;
+  background: #111;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.remoteVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.localVideo {
+  position: absolute;
+  bottom: var(--space-2);
+  right: var(--space-2);
+  width: 96px;
+  height: 128px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid rgb(255 255 255 / 40%);
+}

@@ -11,13 +11,20 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
 from app.core.security import decode_ws_ticket
-from app.db.models import Chat, ChatMember, Message, User
+from app.db.models import Chat, ChatMember, ChatType, Message, User
 from app.db.session import SessionLocal
 from app.services.chat import get_direct_peer_user_ids
 from app.ws.manager import manager
 
 router = APIRouter()
 logger = logging.getLogger("spi.ws")
+
+# Сигналинг звонков (Фаза 6): сервер — только слепой relay между двумя участниками
+# личного чата, без хранения состояния звонка (см. ADR-020). call_id генерируется
+# инициатором на клиенте и просто прокидывается дальше во всех событиях.
+_CALL_EVENT_TYPES = frozenset(
+    {"call.invite", "call.answer", "call.ice-candidate", "call.decline", "call.hangup"}
+)
 
 
 async def _resolve_user(user_public_id: str) -> User | None:
@@ -116,6 +123,39 @@ async def _handle_read(user_id: int, user_public_id: str, payload: dict[str, obj
     )
 
 
+async def _resolve_direct_peer(chat_public_id: str, user_id: int) -> int | None:
+    async with SessionLocal() as db:
+        chat_result = await db.execute(select(Chat).where(Chat.public_id == chat_public_id))
+        chat = chat_result.scalar_one_or_none()
+        if chat is None or chat.type != ChatType.direct:
+            return None
+        member_result = await db.execute(
+            select(ChatMember.user_id).where(
+                ChatMember.chat_id == chat.id, ChatMember.left_at.is_(None)
+            )
+        )
+        member_ids = list(member_result.scalars().all())
+        if user_id not in member_ids:
+            return None
+        peer_ids = [uid for uid in member_ids if uid != user_id]
+        return peer_ids[0] if peer_ids else None
+
+
+async def _handle_call_signal(
+    user_id: int, user_public_id: str, event_type: str, payload: dict[str, object]
+) -> None:
+    chat_public_id = payload.get("chat_id")
+    call_id = payload.get("call_id")
+    if not isinstance(chat_public_id, str) or not isinstance(call_id, str):
+        return
+
+    peer_id = await _resolve_direct_peer(chat_public_id, user_id)
+    if peer_id is None:
+        return
+
+    await manager.send_to_user(peer_id, event_type, {**payload, "from_public_id": user_public_id})
+
+
 @router.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket, ticket: str = Query(...)) -> None:
     try:
@@ -154,6 +194,8 @@ async def ws_endpoint(websocket: WebSocket, ticket: str = Query(...)) -> None:
                 await _handle_typing(user.id, user.public_id, payload)
             elif event_type == "read":
                 await _handle_read(user.id, user.public_id, payload)
+            elif event_type in _CALL_EVENT_TYPES:
+                await _handle_call_signal(user.id, user.public_id, event_type, payload)
     except WebSocketDisconnect:
         pass
     finally:

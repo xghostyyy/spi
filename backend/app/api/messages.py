@@ -83,6 +83,12 @@ class GifPayload(BaseModel):
     height: int | None = None
 
 
+class CallPayload(BaseModel):
+    kind: Literal["audio", "video"]
+    outcome: Literal["answered", "missed", "declined", "canceled"]
+    duration_seconds: int | None = Field(default=None, ge=0)
+
+
 class SendMessageBody(BaseModel):
     client_msg_id: uuid.UUID
     body: str | None = Field(default=None, max_length=8000)
@@ -94,6 +100,7 @@ class SendMessageBody(BaseModel):
     poll: PollPayload | None = None
     sticker: StickerPayload | None = None
     gif: GifPayload | None = None
+    call: CallPayload | None = None
     scheduled_at: datetime | None = None
 
 
@@ -248,6 +255,10 @@ async def send_message(
         message_type = MessageType.gif
         final_body = None
         payload = body.gif.model_dump()
+    elif body.call is not None:
+        message_type = MessageType.call
+        final_body = None
+        payload = body.call.model_dump()
     elif body.poll is not None:
         message_type = MessageType.poll
         final_body = None

@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 
 import { ChatListPage } from '../pages/ChatListPage/ChatListPage';
 import styles from './AppLayout.module.css';
+import { CallOverlay } from './CallOverlay';
 import { useRealtimeSync } from './useRealtimeSync';
 
 /**
@@ -22,6 +23,7 @@ export function AppLayout() {
       <main className={[styles.content, isDetailRoute ? '' : styles.hiddenOnMobile].join(' ')}>
         <Outlet />
       </main>
+      <CallOverlay />
     </div>
   );
 }

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 
 import type {
+  CallPayload,
   ContactPayload,
   GifPayload,
   LocationPayload,
   Message,
   StickerPayload,
 } from '../../entities/message/model';
-import { useT } from '../../shared/i18n';
+import { useT, type TranslationKey } from '../../shared/i18n';
 import { Button } from '../../shared/ui/Button';
 import { MessageBubble } from '../../shared/ui/MessageBubble';
 import {
@@ -17,9 +18,11 @@ import {
   ForwardIcon,
   LocationIcon,
   PencilIcon,
+  PhoneIcon,
   PinIcon,
   ReplyIcon,
   TrashIcon,
+  VideoIcon,
 } from '../../shared/ui/icons';
 import styles from './ChatPage.module.css';
 import { MessageAttachments } from './MessageAttachments';
@@ -44,6 +47,12 @@ interface MessageRowProps {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatCallDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 const MENTION_RE = /@[a-zA-Z][a-zA-Z0-9_]{2,31}/g;
@@ -84,6 +93,24 @@ function SpecialContent({
   const t = useT();
   if (message.type === 'poll' && message.poll) {
     return <PollView poll={message.poll} isOwn={isOwn} onVote={onVotePoll} onClose={onClosePoll} />;
+  }
+  if (message.type === 'call' && message.payload) {
+    const call = message.payload as CallPayload;
+    const Icon = call.kind === 'video' ? VideoIcon : PhoneIcon;
+    const label = t(`call.log.${call.outcome}` as TranslationKey);
+    const duration =
+      call.outcome === 'answered' && call.duration_seconds != null
+        ? formatCallDuration(call.duration_seconds)
+        : null;
+    return (
+      <div className={styles.fileCard}>
+        <Icon size={28} />
+        <span className={styles.fileInfo}>
+          <span className={styles.fileName}>{label}</span>
+          {duration ? <span className={styles.fileSize}>{duration}</span> : null}
+        </span>
+      </div>
+    );
   }
   if (message.type === 'sticker' && message.payload) {
     const sticker = message.payload as StickerPayload;

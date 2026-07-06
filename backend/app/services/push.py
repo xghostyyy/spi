@@ -29,6 +29,7 @@ _PUSH_PREVIEW_BY_TYPE: dict[MessageType, str] = {
     MessageType.poll: "📊 Опрос",
     MessageType.sticker: "🖼 Стикер",
     MessageType.gif: "🎞 GIF",
+    MessageType.call: "📞 Звонок",
 }
 
 

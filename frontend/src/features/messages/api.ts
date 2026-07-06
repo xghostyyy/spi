@@ -26,6 +26,11 @@ export async function sendMessage(
     };
     sticker?: { pack: string; stickerId: string; emoji: string; url: string };
     gif?: { url: string; previewUrl?: string; width?: number; height?: number };
+    call?: {
+      kind: 'audio' | 'video';
+      outcome: 'answered' | 'missed' | 'declined' | 'canceled';
+      durationSeconds?: number;
+    };
     scheduledAt?: string;
   },
 ): Promise<Message> {
@@ -61,6 +66,13 @@ export async function sendMessage(
             preview_url: input.gif.previewUrl ?? null,
             width: input.gif.width ?? null,
             height: input.gif.height ?? null,
+          }
+        : null,
+      call: input.call
+        ? {
+            kind: input.call.kind,
+            outcome: input.call.outcome,
+            duration_seconds: input.call.durationSeconds ?? null,
           }
         : null,
       scheduled_at: input.scheduledAt ?? null,

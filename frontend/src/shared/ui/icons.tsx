@@ -53,6 +53,26 @@ export function PencilIcon({ size, className }: IconProps) {
   );
 }
 
+export function VideoIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <rect x="3" y="6" width="12" height="12" rx="2" />
+      <path d="M15 10l6-3.5v11L15 14" />
+    </svg>
+  );
+}
+
+export function MicOffIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M9 9v3a3 3 0 0 0 4.6 2.55M15 10V6a3 3 0 0 0-5.9-.8" />
+      <path d="M5 11a7 7 0 0 0 9.6 6.6M19 11a7 7 0 0 1-1.1 3.8" />
+      <line x1="12" y1="18" x2="12" y2="22" />
+      <line x1="3" y1="3" x2="21" y2="21" />
+    </svg>
+  );
+}
+
 export function GearIcon({ size, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

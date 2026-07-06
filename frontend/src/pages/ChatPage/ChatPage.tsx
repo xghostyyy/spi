@@ -32,6 +32,7 @@ import {
   toggleReaction,
   votePoll,
 } from '../../features/messages/api';
+import { callManager } from '../../shared/calls/CallManager';
 import { pluralRu, useLocaleStore, useT } from '../../shared/i18n';
 import type { StickerDef } from '../../shared/stickers/catalog';
 import { Avatar } from '../../shared/ui/Avatar';
@@ -52,6 +53,7 @@ import {
   SendIcon,
   StickerIcon,
   TrashIcon,
+  VideoIcon,
 } from '../../shared/ui/icons';
 import { wsClient } from '../../shared/ws/client';
 import { useTypingStore } from '../../shared/ws/typingStore';
@@ -457,10 +459,25 @@ export function ChatPage() {
             <ClockIcon />
           </IconButton>
         ) : null}
-        {!isSaved ? (
-          <IconButton label={t('chat.call')} onClick={() => alert(t('chat.callsSoon'))}>
-            <PhoneIcon />
-          </IconButton>
+        {chat?.type === 'direct' && chat.peerPublicId ? (
+          <>
+            <IconButton
+              label={t('chat.call')}
+              onClick={() =>
+                void callManager.startCall(chatId, chat.peerPublicId!, chat.title, 'audio')
+              }
+            >
+              <PhoneIcon />
+            </IconButton>
+            <IconButton
+              label={t('chat.videoCall')}
+              onClick={() =>
+                void callManager.startCall(chatId, chat.peerPublicId!, chat.title, 'video')
+              }
+            >
+              <VideoIcon />
+            </IconButton>
+          </>
         ) : null}
       </header>
 
