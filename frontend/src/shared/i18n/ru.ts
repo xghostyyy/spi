@@ -107,6 +107,13 @@ export const ru = {
   'poll.votes': 'голосов',
   'poll.closed': 'Опрос завершён',
   'poll.close': 'Завершить опрос',
+
+  'media.title': 'Медиа-архив',
+  'media.tabs.media': 'Медиа',
+  'media.tabs.files': 'Файлы',
+  'media.tabs.links': 'Ссылки',
+  'media.tabs.voice': 'Голосовые',
+  'media.empty': 'Пока ничего нет',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

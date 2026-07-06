@@ -1,26 +1,36 @@
-"""Список личных чатов: создание, закреп/архив/mute."""
+"""Список личных чатов: создание, закреп/архив/mute, медиа-архив."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas import ChatOut
+from app.api.schemas import ChatOut, MessageOut
 from app.core.deps import get_current_user
-from app.db.models import Chat, ChatMember, User
+from app.db.models import Chat, ChatMember, Message, MessageType, User
 from app.db.session import get_db
 from app.services.chat import (
     build_chat_out,
+    build_message_out,
     get_membership_or_404,
     get_or_create_direct_chat,
     get_or_create_saved_chat,
 )
 
 router = APIRouter(prefix="/chats", tags=["chats"])
+
+MediaTab = Literal["media", "files", "voice", "links"]
+
+_TAB_TYPES: dict[str, list[MessageType]] = {
+    "media": [MessageType.photo, MessageType.video, MessageType.album],
+    "files": [MessageType.document],
+    "voice": [MessageType.voice, MessageType.audio],
+}
 
 
 class CreateDirectChatBody(BaseModel):
@@ -125,3 +135,25 @@ async def update_chat_membership(
 
     await db.commit()
     return await build_chat_out(db, chat, member, user)
+
+
+@router.get("/{chat_public_id}/media", response_model=list[MessageOut])
+async def get_chat_media(
+    chat_public_id: str,
+    tab: MediaTab = Query(...),
+    limit: int = Query(default=100, le=200, ge=1),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MessageOut]:
+    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+
+    stmt = select(Message).where(Message.chat_id == chat.id, Message.deleted_for_all_at.is_(None))
+    if tab == "links":
+        stmt = stmt.where(Message.body.op("~")(r"https?://"))
+    else:
+        stmt = stmt.where(Message.type.in_(_TAB_TYPES[tab]))
+    stmt = stmt.order_by(Message.id.desc()).limit(limit)
+
+    result = await db.execute(stmt)
+    messages = list(reversed(result.scalars().all()))
+    return [await build_message_out(db, message, chat, user.id) for message in messages]

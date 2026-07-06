@@ -1,6 +1,10 @@
 import { chatFromDto, type ChatDto } from '../../entities/chat/dto';
 import type { Chat } from '../../entities/chat/model';
+import { messageFromDto, type MessageDto } from '../../entities/message/dto';
+import type { Message } from '../../entities/message/model';
 import { apiFetch } from '../../shared/api/client';
+
+export type MediaTab = 'media' | 'files' | 'voice' | 'links';
 
 export async function listChats(): Promise<Chat[]> {
   const res = await apiFetch<ChatDto[]>('/api/v1/chats');
@@ -39,4 +43,9 @@ export async function updateChatMembership(
     body,
   });
   return chatFromDto(res);
+}
+
+export async function getChatMedia(chatPublicId: string, tab: MediaTab): Promise<Message[]> {
+  const res = await apiFetch<MessageDto[]>(`/api/v1/chats/${chatPublicId}/media?tab=${tab}`);
+  return res.map(messageFromDto);
 }

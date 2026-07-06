@@ -118,6 +118,11 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
   флаги, `closed_at`, `total_votes` и список опций (`position`, `text`, `votes`,
   `voted_by_me`) — позиция (`position`), а не внутренний ID, используется как идентификатор
   варианта в API, чтобы не светить сырые PK.
+- `GET /api/v1/chats/{id}/media?tab=media|files|voice|links` — медиа-архив чата (доступен
+  для любого типа чата, не только групп): `media` — фото/видео/альбомы, `files` —
+  документы, `voice` — голосовые и аудио, `links` — сообщения, где `body` содержит
+  `http(s)://` (регэксп по `body`, не полнотекстовый поиск). Возвращает `MessageOut[]`,
+  новые последними, `limit` по умолчанию 100 (макс. 200).
 - `POST .../messages/{id}/poll/vote` — `{option_positions: number[]}`; для не-`multi_choice`
   опроса допустима ровно одна позиция (иначе `400 single_choice_only`); повторное
   голосование заменяет предыдущий выбор, а не добавляет к нему. `POST .../poll/close` —

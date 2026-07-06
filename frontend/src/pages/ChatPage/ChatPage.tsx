@@ -13,6 +13,7 @@ import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
 import { ContactPicker } from './ContactPicker';
 import { ForwardModal } from './ForwardModal';
 import { InviteModal } from './InviteModal';
+import { MediaArchiveModal } from './MediaArchiveModal';
 import { PinnedCarousel } from './PinnedCarousel';
 import { PollCreator } from './PollCreator';
 import { SystemMessageRow } from './SystemMessageRow';
@@ -106,6 +107,7 @@ export function ChatPage() {
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
+  const [showMediaArchive, setShowMediaArchive] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -363,13 +365,19 @@ export function ChatPage() {
             <BackIcon />
           </IconButton>
         </Link>
-        <Avatar name={displayTitle} src={chat?.avatarUrl} size={40} online={chat?.peerOnline} />
-        <div className={styles.headerInfo}>
-          <span className={styles.headerTitle}>{displayTitle}</span>
-          <span className={styles.headerStatus}>
-            {typing ? t('chat.typing') : chat && !isSaved ? formatPresence(chat, locale, t) : ''}
-          </span>
-        </div>
+        <button
+          type="button"
+          className={styles.headerInfoButton}
+          onClick={() => setShowMediaArchive(true)}
+        >
+          <Avatar name={displayTitle} src={chat?.avatarUrl} size={40} online={chat?.peerOnline} />
+          <div className={styles.headerInfo}>
+            <span className={styles.headerTitle}>{displayTitle}</span>
+            <span className={styles.headerStatus}>
+              {typing ? t('chat.typing') : chat && !isSaved ? formatPresence(chat, locale, t) : ''}
+            </span>
+          </div>
+        </button>
         {chat?.type === 'group' ? (
           <IconButton label={t('group.invite.create')} onClick={() => setShowInviteModal(true)}>
             <LinkIcon />
@@ -585,6 +593,10 @@ export function ChatPage() {
             setShowPollCreator(false);
           }}
         />
+      ) : null}
+
+      {showMediaArchive && chatId ? (
+        <MediaArchiveModal chatPublicId={chatId} onClose={() => setShowMediaArchive(false)} />
       ) : null}
     </div>
   );

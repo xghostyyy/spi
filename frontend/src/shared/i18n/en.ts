@@ -109,4 +109,11 @@ export const en: Record<TranslationKey, string> = {
   'poll.votes': 'votes',
   'poll.closed': 'Poll closed',
   'poll.close': 'Close poll',
+
+  'media.title': 'Media archive',
+  'media.tabs.media': 'Media',
+  'media.tabs.files': 'Files',
+  'media.tabs.links': 'Links',
+  'media.tabs.voice': 'Voice',
+  'media.empty': 'Nothing here yet',
 };

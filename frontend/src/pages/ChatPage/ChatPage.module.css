@@ -27,6 +27,21 @@
   display: none;
 }
 
+.headerInfoButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
 .headerInfo {
   flex: 1;
   min-width: 0;
@@ -308,6 +323,48 @@
 .pollBarFill {
   height: 100%;
   background: var(--color-accent);
+}
+
+.mediaTabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mediaTab {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--space-2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.mediaTabActive {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.mediaEmpty {
+  text-align: center;
+  color: var(--color-text-secondary);
+  padding: var(--space-4);
+}
+
+.mediaGridArchive {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: var(--space-2);
+}
+
+.mediaGridThumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
 }
 
 .messageActions {
