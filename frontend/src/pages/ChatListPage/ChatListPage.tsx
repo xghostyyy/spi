@@ -6,10 +6,12 @@ import type { Chat } from '../../entities/chat/model';
 import type { Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
 import { createDirectChat, getSavedChat, listChats } from '../../features/chats/api';
+import { createGroup } from '../../features/groups/api';
 import { search as searchApi } from '../../features/search/api';
 import { useT, type TranslationKey } from '../../shared/i18n';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Badge } from '../../shared/ui/Badge';
+import { Button } from '../../shared/ui/Button';
 import { IconButton } from '../../shared/ui/IconButton';
 import { Input } from '../../shared/ui/Input';
 import { BookmarkFilledIcon, GearIcon, PlusIcon, SearchIcon } from '../../shared/ui/icons';
@@ -142,9 +144,11 @@ export function ChatListPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<'none' | 'choose' | 'chat' | 'group'>('none');
   const [newChatUsername, setNewChatUsername] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
+  const [groupTitle, setGroupTitle] = useState('');
+  const [groupMembers, setGroupMembers] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -163,12 +167,24 @@ export function ChatListPage() {
     mutationFn: (username: string) => createDirectChat(username),
     onSuccess: (chat) => {
       void queryClient.invalidateQueries({ queryKey: ['chats'] });
-      setCreating(false);
+      setCreating('none');
       setNewChatUsername('');
       setCreateError(null);
       navigate(`/chat/${chat.chatPublicId}`);
     },
     onError: () => setCreateError('Пользователь не найден'),
+  });
+
+  const createGroupMutation = useMutation({
+    mutationFn: ({ title, members }: { title: string; members: string[] }) =>
+      createGroup(title, members),
+    onSuccess: (chat) => {
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      setCreating('none');
+      setGroupTitle('');
+      setGroupMembers('');
+      navigate(`/chat/${chat.chatPublicId}`);
+    },
   });
 
   const filteredChats = useMemo(() => {
@@ -193,7 +209,10 @@ export function ChatListPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <IconButton label={t('chatlist.newChat')} onClick={() => setCreating((v) => !v)}>
+        <IconButton
+          label={t('chatlist.newChat')}
+          onClick={() => setCreating((v) => (v === 'none' ? 'choose' : 'none'))}
+        >
           <PlusIcon />
         </IconButton>
         <Link to="/settings">
@@ -203,7 +222,18 @@ export function ChatListPage() {
         </Link>
       </header>
 
-      {creating ? (
+      {creating === 'choose' ? (
+        <div className={styles.newChatChooser}>
+          <button type="button" onClick={() => setCreating('chat')}>
+            {t('chatlist.newChat')}
+          </button>
+          <button type="button" onClick={() => setCreating('group')}>
+            {t('chatlist.newGroup')}
+          </button>
+        </div>
+      ) : null}
+
+      {creating === 'chat' ? (
         <form
           className={styles.newChatForm}
           onSubmit={(e) => {
@@ -219,6 +249,36 @@ export function ChatListPage() {
             onChange={(e) => setNewChatUsername(e.target.value)}
           />
           {createError ? <p className={styles.newChatError}>{createError}</p> : null}
+        </form>
+      ) : null}
+
+      {creating === 'group' ? (
+        <form
+          className={styles.newGroupForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const title = groupTitle.trim();
+            const members = groupMembers
+              .split(',')
+              .map((m) => m.trim().replace(/^@/, ''))
+              .filter(Boolean);
+            if (title) createGroupMutation.mutate({ title, members });
+          }}
+        >
+          <Input
+            autoFocus
+            placeholder={t('group.newGroup.titlePlaceholder')}
+            value={groupTitle}
+            onChange={(e) => setGroupTitle(e.target.value)}
+          />
+          <Input
+            placeholder={t('group.newGroup.membersPlaceholder')}
+            value={groupMembers}
+            onChange={(e) => setGroupMembers(e.target.value)}
+          />
+          <Button type="submit" size="md" disabled={!groupTitle.trim()}>
+            {t('group.newGroup.submit')}
+          </Button>
         </form>
       ) : null}
 

@@ -12,6 +12,7 @@ export const ru = {
   'chatlist.empty.hint': 'Найдите собеседника по @username и начните переписку',
   'chatlist.savedMessages': 'Сохраненные сообщения',
   'chatlist.newChatPlaceholder': 'Введите @username и нажмите Enter',
+  'chatlist.newGroup': 'Новая группа',
   'chatlist.you': 'Вы:',
   'preview.photo': '📷 Фото',
   'preview.video': '📹 Видео',
@@ -114,6 +115,24 @@ export const ru = {
   'media.tabs.links': 'Ссылки',
   'media.tabs.voice': 'Голосовые',
   'media.empty': 'Пока ничего нет',
+
+  'group.newGroup.titlePlaceholder': 'Название группы',
+  'group.newGroup.membersPlaceholder': 'Участники через запятую (@username)',
+  'group.newGroup.submit': 'Создать',
+  'group.info.members': 'Участники',
+  'group.info.addMembers': 'Добавить участников',
+  'group.info.leave': 'Покинуть группу',
+  'group.info.leaveConfirm': 'Покинуть эту группу?',
+  'group.info.remove': 'Удалить из группы',
+  'group.info.makeAdmin': 'Назначить администратором',
+  'group.info.removeAdmin': 'Снять права администратора',
+  'group.info.owner': 'Владелец',
+  'group.info.admin': 'Администратор',
+  'group.info.member': 'Участник',
+  'group.info.media': 'Медиа-архив',
+  'group.info.invite': 'Пригласить по ссылке',
+  'group.info.description': 'Описание',
+  'group.info.editInfo': 'Изменить информацию',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import type { Chat } from '../../entities/chat/model';
 import type { FileKind, Message } from '../../entities/message/model';
@@ -12,6 +12,7 @@ import { listGroupMembers, pinMessage } from '../../features/groups/api';
 import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
 import { ContactPicker } from './ContactPicker';
 import { ForwardModal } from './ForwardModal';
+import { GroupInfoModal } from './GroupInfoModal';
 import { InviteModal } from './InviteModal';
 import { MediaArchiveModal } from './MediaArchiveModal';
 import { PinnedCarousel } from './PinnedCarousel';
@@ -96,6 +97,7 @@ export function ChatPage() {
   const t = useT();
   const locale = useLocaleStore((s) => s.locale);
   const { chatId } = useParams<{ chatId: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const me = useSessionStore((s) => s.user);
 
@@ -108,6 +110,7 @@ export function ChatPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [showMediaArchive, setShowMediaArchive] = useState(false);
+  const [showGroupInfo, setShowGroupInfo] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -368,7 +371,9 @@ export function ChatPage() {
         <button
           type="button"
           className={styles.headerInfoButton}
-          onClick={() => setShowMediaArchive(true)}
+          onClick={() =>
+            chat?.type === 'group' ? setShowGroupInfo(true) : setShowMediaArchive(true)
+          }
         >
           <Avatar name={displayTitle} src={chat?.avatarUrl} size={40} online={chat?.peerOnline} />
           <div className={styles.headerInfo}>
@@ -597,6 +602,25 @@ export function ChatPage() {
 
       {showMediaArchive && chatId ? (
         <MediaArchiveModal chatPublicId={chatId} onClose={() => setShowMediaArchive(false)} />
+      ) : null}
+
+      {showGroupInfo && chat ? (
+        <GroupInfoModal
+          chat={chat}
+          onClose={() => setShowGroupInfo(false)}
+          onOpenInvite={() => {
+            setShowGroupInfo(false);
+            setShowInviteModal(true);
+          }}
+          onOpenMedia={() => {
+            setShowGroupInfo(false);
+            setShowMediaArchive(true);
+          }}
+          onLeft={() => {
+            setShowGroupInfo(false);
+            navigate('/');
+          }}
+        />
       ) : null}
     </div>
   );

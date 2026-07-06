@@ -47,6 +47,33 @@
   background: var(--color-bg-secondary);
 }
 
+.newChatChooser {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-secondary);
+}
+
+.newChatChooser button {
+  flex: 1;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+.newGroupForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-secondary);
+}
+
 .newChatError {
   margin: var(--space-1) 0 0;
   font-size: var(--font-size-sm);
