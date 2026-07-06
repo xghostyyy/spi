@@ -1,10 +1,10 @@
 """SQLAlchemy-модели. Должны соответствовать db/schema.sql (см. ADR-004 в docs/DECISIONS.md).
 
-Пока моделируются только таблицы, необходимые для реализованных фаз (0-4):
+Пока моделируются только таблицы, необходимые для реализованных фаз (0-5):
 users, files, email_login_codes, sessions, contacts, blocked_users, chats,
 chat_members, chat_invites, messages, message_reactions, message_hidden,
 message_attachments, message_bookmarks, pinned_messages, drafts, polls,
-poll_options, poll_votes.
+poll_options, poll_votes, push_subscriptions.
 """
 
 from __future__ import annotations
@@ -416,3 +416,20 @@ class Draft(Base):
         BigInteger, ForeignKey("messages.id", ondelete="SET NULL")
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (UniqueConstraint("endpoint", "user_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    session_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("sessions.id", ondelete="CASCADE")
+    )
+    endpoint: Mapped[str] = mapped_column(String(1024), nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

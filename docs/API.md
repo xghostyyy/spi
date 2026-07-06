@@ -163,3 +163,21 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
 
 Отправка сообщений — **только через REST** (`POST .../messages` с `client_msg_id`),
 WS используется исключительно для доставки событий.
+
+## Реализовано (Фаза 5, Web Push)
+
+- `GET /api/v1/push/vapid-public-key` — публичный VAPID-ключ (без авторизации) для
+  `PushManager.subscribe({applicationServerKey: ...})` на фронтенде.
+- `POST /api/v1/push/subscribe` — сохранить/обновить подписку браузера (`endpoint`,
+  `keys.p256dh`, `keys.auth` — стандартный `PushSubscription.toJSON()`); идемпотентно
+  (`ON CONFLICT` по `(endpoint, user_id)`).
+- `POST /api/v1/push/unsubscribe` — удалить подписку по `endpoint`.
+- Отправка: при `POST .../messages` сервер шлёт push всем офлайн-участникам чата (кроме
+  автора и тех, у кого чат заглушен `muted_until`) через `notify_chat_members()`
+  (`app/services/push.py`), используя `pywebpush` + `VAPID_PRIVATE_KEY`/`VAPID_PUBLIC_KEY`
+  из окружения. «Офлайн» определяется по `ConnectionManager.is_online()` — то есть push не
+  дублирует WS-уведомление тем, у кого открыто соединение. Если VAPID-ключи не заданы
+  (пусто в `.env`) — отправка молча пропускается, ошибка не бросается (см. ADR — будет
+  дополнено при полной реализации Web Push на фронтенде).
+- Протухшие подписки (браузер вернул `404`/`410 Gone`) удаляются из `push_subscriptions`
+  автоматически при следующей попытке отправки.
