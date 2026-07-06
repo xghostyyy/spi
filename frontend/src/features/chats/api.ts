@@ -2,9 +2,10 @@ import { chatFromDto, type ChatDto } from '../../entities/chat/dto';
 import type { Chat } from '../../entities/chat/model';
 import { messageFromDto, type MessageDto } from '../../entities/message/dto';
 import type { Message } from '../../entities/message/model';
-import { apiFetch } from '../../shared/api/client';
+import { apiFetch, apiFetchBlob, triggerBlobDownload } from '../../shared/api/client';
 
 export type MediaTab = 'media' | 'files' | 'voice' | 'links';
+export type ExportFormat = 'json' | 'html';
 
 export async function listChats(): Promise<Chat[]> {
   const res = await apiFetch<ChatDto[]>('/api/v1/chats');
@@ -48,4 +49,11 @@ export async function updateChatMembership(
 export async function getChatMedia(chatPublicId: string, tab: MediaTab): Promise<Message[]> {
   const res = await apiFetch<MessageDto[]>(`/api/v1/chats/${chatPublicId}/media?tab=${tab}`);
   return res.map(messageFromDto);
+}
+
+export async function exportChat(chatPublicId: string, format: ExportFormat): Promise<void> {
+  const { blob, filename } = await apiFetchBlob(
+    `/api/v1/chats/${chatPublicId}/export?format=${format}`,
+  );
+  triggerBlobDownload(blob, filename ?? `chat-${chatPublicId}.${format}`);
 }

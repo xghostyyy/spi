@@ -1,11 +1,14 @@
-"""Список личных чатов: создание, закреп/архив/mute, медиа-архив."""
+"""Список личных чатов: создание, закреп/архив/mute, медиа-архив, экспорт истории."""
 
 from __future__ import annotations
 
+import html as html_lib
+import json
 from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -157,3 +160,84 @@ async def get_chat_media(
     result = await db.execute(stmt)
     messages = list(reversed(result.scalars().all()))
     return [await build_message_out(db, message, chat, user.id) for message in messages]
+
+
+ExportFormat = Literal["json", "html"]
+
+
+def _export_html(chat_title: str, exported_at: str, messages: list[MessageOut]) -> str:
+    rows = []
+    for m in messages:
+        sender = html_lib.escape(m.sender_public_id or "—")
+        when = html_lib.escape(m.created_at.isoformat(timespec="seconds"))
+        if m.deleted_for_all:
+            body = "<em>Сообщение удалено</em>"
+        else:
+            body = html_lib.escape(m.body or f"[{m.type.value}]").replace("\n", "<br>")
+            for attachment in m.attachments:
+                name = html_lib.escape(attachment.original_name or attachment.public_id)
+                body += f'<br><a href="{html_lib.escape(attachment.url)}">{name}</a>'
+        rows.append(
+            f'<div class="msg"><span class="meta">{when} — {sender}</span>'
+            f'<div class="body">{body}</div></div>'
+        )
+
+    return f"""<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>{html_lib.escape(chat_title)} — экспорт истории</title>
+<style>
+  body {{ font-family: -apple-system, Arial, sans-serif; max-width: 720px; margin: 2rem auto;
+          padding: 0 1rem; color: #181b1f; }}
+  h1 {{ font-size: 1.25rem; }}
+  .exported-at {{ color: #6d757d; font-size: 0.85rem; margin-bottom: 1.5rem; }}
+  .msg {{ padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb; }}
+  .meta {{ font-size: 0.8rem; color: #6d757d; }}
+  .body {{ margin-top: 2px; white-space: pre-wrap; }}
+</style>
+</head>
+<body>
+<h1>{html_lib.escape(chat_title)}</h1>
+<div class="exported-at">Экспортировано: {html_lib.escape(exported_at)}</div>
+{"".join(rows)}
+</body>
+</html>"""
+
+
+@router.get("/{chat_public_id}/export")
+async def export_chat(
+    chat_public_id: str,
+    format: ExportFormat = Query(default="json"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+
+    result = await db.execute(
+        select(Message).where(Message.chat_id == chat.id).order_by(Message.id)
+    )
+    messages = [await build_message_out(db, message, chat, user.id) for message in result.scalars()]
+    chat_title = chat.title or "Диалог"
+    exported_at = datetime.now(UTC).isoformat(timespec="seconds")
+
+    if format == "html":
+        content = _export_html(chat_title, exported_at, messages)
+        media_type = "text/html"
+        filename = f"chat-{chat.public_id}.html"
+    else:
+        export = {
+            "chat": {"public_id": chat.public_id, "type": chat.type.value, "title": chat_title},
+            "exported_at": exported_at,
+            "exported_by": user.public_id,
+            "messages": [m.model_dump(mode="json") for m in messages],
+        }
+        content = json.dumps(export, ensure_ascii=False, indent=2)
+        media_type = "application/json"
+        filename = f"chat-{chat.public_id}.json"
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

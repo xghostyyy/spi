@@ -112,6 +112,12 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
   `POST/DELETE /api/v1/chats/{id}/messages/{message_id}/pin` — закрепить/открепить
   (нужен `can_pin`; только для групп — `400 not_a_group` для direct/saved). Оба действия
   рассылают `pinned.updated` по WS и создают системное сообщение `message_pinned`.
+- `GET /api/v1/chats/{id}/export?format=json|html` — выгрузка полной истории чата
+  (владелец аккаунта — свои чаты; полный серверный экспорт для администратора не
+  реализован, см. ТЗ §2.6 — вне текущего объёма MVP). `json` — структурированный
+  `{chat, exported_at, exported_by, messages: MessageOut[]}`; `html` — самодостаточная
+  HTML-страница (без внешних ресурсов) с транскриптом. Оба варианта отдаются с
+  `Content-Disposition: attachment`, то есть браузер сразу скачивает файл.
 - `POST .../messages` также принимает `poll: {question, options[2..10], is_anonymous?,
   multi_choice?}` — создаёт `type=poll` сообщение с таблицами `polls`/`poll_options`.
   Опрос нельзя переслать (`400 cannot_forward_poll`). `MessageOut.poll` содержит вопрос,

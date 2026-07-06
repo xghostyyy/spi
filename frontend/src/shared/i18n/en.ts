@@ -117,6 +117,8 @@ export const en: Record<TranslationKey, string> = {
   'media.tabs.links': 'Links',
   'media.tabs.voice': 'Voice',
   'media.empty': 'Nothing here yet',
+  'media.export.json': 'Export as JSON',
+  'media.export.html': 'Export as HTML',
 
   'group.newGroup.titlePlaceholder': 'Group name',
   'group.newGroup.membersPlaceholder': 'Members, comma separated (@username)',

@@ -115,6 +115,8 @@ export const ru = {
   'media.tabs.links': 'Ссылки',
   'media.tabs.voice': 'Голосовые',
   'media.empty': 'Пока ничего нет',
+  'media.export.json': 'Экспорт в JSON',
+  'media.export.html': 'Экспорт в HTML',
 
   'group.newGroup.titlePlaceholder': 'Название группы',
   'group.newGroup.membersPlaceholder': 'Участники через запятую (@username)',

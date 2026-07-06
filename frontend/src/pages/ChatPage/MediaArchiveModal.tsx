@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { getChatMedia, type MediaTab } from '../../features/chats/api';
+import { exportChat, getChatMedia, type MediaTab } from '../../features/chats/api';
 import { useT } from '../../shared/i18n';
+import { Button } from '../../shared/ui/Button';
 import { IconButton } from '../../shared/ui/IconButton';
 import { CloseIcon, FileIcon } from '../../shared/ui/icons';
 import { VoicePlayer } from './VoicePlayer';
@@ -38,6 +39,10 @@ export function MediaArchiveModal({ chatPublicId, onClose }: MediaArchiveModalPr
     queryFn: () => getChatMedia(chatPublicId, tab),
   });
   const messages = mediaQuery.data ?? [];
+
+  const exportMutation = useMutation({
+    mutationFn: (format: 'json' | 'html') => exportChat(chatPublicId, format),
+  });
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -114,6 +119,27 @@ export function MediaArchiveModal({ chatPublicId, onClose }: MediaArchiveModalPr
               </div>
             ))
           )}
+        </div>
+
+        <div className={styles.exportRow}>
+          <Button
+            variant="secondary"
+            size="md"
+            type="button"
+            disabled={exportMutation.isPending}
+            onClick={() => exportMutation.mutate('json')}
+          >
+            {t('media.export.json')}
+          </Button>
+          <Button
+            variant="secondary"
+            size="md"
+            type="button"
+            disabled={exportMutation.isPending}
+            onClick={() => exportMutation.mutate('html')}
+          >
+            {t('media.export.html')}
+          </Button>
         </div>
       </div>
     </div>

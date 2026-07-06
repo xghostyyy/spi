@@ -63,3 +63,35 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+/** Для скачиваемых файлов (напр. экспорт истории) — ответ не JSON, а attachment. */
+export async function apiFetchBlob(path: string): Promise<{ blob: Blob; filename: string | null }> {
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  const res = await fetch(`${API_BASE_URL}${path}`, { headers, credentials: 'include' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(
+      res.status,
+      (data as { code?: string }).code ?? 'unknown_error',
+      (data as { message?: string }).message ?? res.statusText,
+    );
+  }
+
+  const disposition = res.headers.get('content-disposition');
+  const match = disposition?.match(/filename="([^"]+)"/);
+  return { blob: await res.blob(), filename: match?.[1] ?? null };
+}
+
+/** Скачивает Blob как файл через временный <a download>. */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
