@@ -10,14 +10,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
-from app.api.schemas import ChatInviteOut, ChatMemberOut, ChatOut, InvitePreviewOut
+from app.api.schemas import ChatInviteOut, ChatMemberOut, ChatOut, InvitePreviewOut, MessageOut
 from app.core.deps import get_current_user
-from app.db.models import Chat, ChatInvite, ChatMember, ChatType, MemberRole, User
+from app.db.models import Chat, ChatInvite, ChatMember, ChatType, MemberRole, Message, User
 from app.db.session import get_db
 from app.services.chat import (
     FORBIDDEN,
     INVITE_EXPIRED,
     INVITE_NOT_FOUND,
+    MESSAGE_NOT_FOUND,
     NOT_A_GROUP,
     add_or_reactivate_members,
     avatar_url_for,
@@ -31,8 +32,12 @@ from app.services.chat import (
     invite_is_valid,
     join_chat_via_invite,
     list_chat_members,
+    list_pinned_messages,
+    pin_message,
     require_permission,
+    unpin_message,
 )
+from app.ws.events import broadcast_to_chat
 
 router = APIRouter(prefix="/chats", tags=["groups"])
 invite_router = APIRouter(prefix="/invites", tags=["groups"])
@@ -416,3 +421,77 @@ async def join_via_invite(
         await create_system_message(db, chat, "member_joined_via_invite", {"actor": user.public_id})
 
     return await build_chat_out(db, chat, member, user)
+
+
+@router.get("/{chat_public_id}/pinned", response_model=list[MessageOut])
+async def get_pinned_messages(
+    chat_public_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MessageOut]:
+    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+    _require_group(chat)
+    return await list_pinned_messages(db, chat, user.id)
+
+
+@router.post(
+    "/{chat_public_id}/messages/{message_public_id}/pin", status_code=status.HTTP_204_NO_CONTENT
+)
+async def pin_group_message(
+    chat_public_id: str,
+    message_public_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    chat, member = await get_membership_or_404(db, chat_public_id, user)
+    _require_group(chat)
+    require_permission(member, "can_pin")
+
+    message_result = await db.execute(
+        select(Message).where(Message.public_id == message_public_id, Message.chat_id == chat.id)
+    )
+    message = message_result.scalar_one_or_none()
+    if message is None:
+        raise MESSAGE_NOT_FOUND
+
+    await pin_message(db, chat, message, user)
+    await create_system_message(
+        db, chat, "message_pinned", {"actor": user.public_id, "message": message_public_id}
+    )
+    pinned = await list_pinned_messages(db, chat, user.id)
+    await broadcast_to_chat(
+        db,
+        chat.id,
+        "pinned.updated",
+        {"chat_public_id": chat.public_id, "pinned": [m.model_dump(mode="json") for m in pinned]},
+    )
+
+
+@router.delete(
+    "/{chat_public_id}/messages/{message_public_id}/pin", status_code=status.HTTP_204_NO_CONTENT
+)
+async def unpin_group_message(
+    chat_public_id: str,
+    message_public_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    chat, member = await get_membership_or_404(db, chat_public_id, user)
+    _require_group(chat)
+    require_permission(member, "can_pin")
+
+    message_result = await db.execute(
+        select(Message).where(Message.public_id == message_public_id, Message.chat_id == chat.id)
+    )
+    message = message_result.scalar_one_or_none()
+    if message is None:
+        raise MESSAGE_NOT_FOUND
+
+    await unpin_message(db, chat.id, message.id)
+    pinned = await list_pinned_messages(db, chat, user.id)
+    await broadcast_to_chat(
+        db,
+        chat.id,
+        "pinned.updated",
+        {"chat_public_id": chat.public_id, "pinned": [m.model_dump(mode="json") for m in pinned]},
+    )

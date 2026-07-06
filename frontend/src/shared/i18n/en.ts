@@ -82,6 +82,7 @@ export const en: Record<TranslationKey, string> = {
   'common.location': 'Location',
   'common.contact': 'Contact',
   'common.openMap': 'Open on map',
+  'common.pin': 'Pin',
 
   'group.membersCount': 'members',
   'group.join.title': 'Join group',

@@ -80,6 +80,7 @@ export const ru = {
   'common.location': 'Геолокация',
   'common.contact': 'Контакт',
   'common.openMap': 'Открыть на карте',
+  'common.pin': 'Закрепить',
 
   'group.membersCount': 'участников',
   'group.join.title': 'Вступить в группу',

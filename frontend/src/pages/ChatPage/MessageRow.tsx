@@ -11,6 +11,7 @@ import {
   ForwardIcon,
   LocationIcon,
   PencilIcon,
+  PinIcon,
   ReplyIcon,
   TrashIcon,
 } from '../../shared/ui/icons';
@@ -29,6 +30,7 @@ interface MessageRowProps {
   onImageClick: (url: string) => void;
   onToggleBookmark: () => void;
   onForward: () => void;
+  onPin?: () => void;
 }
 
 function formatTime(iso: string): string {
@@ -81,6 +83,7 @@ export function MessageRow({
   onImageClick,
   onToggleBookmark,
   onForward,
+  onPin,
 }: MessageRowProps) {
   const t = useT();
   const [editing, setEditing] = useState(false);
@@ -156,6 +159,16 @@ export function MessageRow({
             aria-label={t('chatlist.savedMessages')}
           >
             {message.bookmarked ? <BookmarkFilledIcon size={16} /> : <BookmarkIcon size={16} />}
+          </button>
+        ) : null}
+        {!message.deletedForAll && onPin ? (
+          <button
+            type="button"
+            className={styles.actionIcon}
+            onClick={onPin}
+            aria-label={t('common.pin')}
+          >
+            <PinIcon size={16} />
           </button>
         ) : null}
         {isOwn && !message.deletedForAll ? (

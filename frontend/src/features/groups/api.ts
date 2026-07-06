@@ -9,6 +9,8 @@ import {
   type InvitePreviewDto,
 } from '../../entities/chat/dto';
 import type { Chat, ChatInvite, ChatMember, InvitePreview } from '../../entities/chat/model';
+import { messageFromDto, type MessageDto } from '../../entities/message/dto';
+import type { Message } from '../../entities/message/model';
 import { apiFetch } from '../../shared/api/client';
 
 export async function createGroup(title: string, memberUsernames: string[]): Promise<Chat> {
@@ -111,4 +113,21 @@ export async function joinInvite(token: string): Promise<Chat> {
 
 export function inviteJoinUrl(token: string): string {
   return `${window.location.origin}/join/${token}`;
+}
+
+export async function listPinnedMessages(chatPublicId: string): Promise<Message[]> {
+  const res = await apiFetch<MessageDto[]>(`/api/v1/chats/${chatPublicId}/pinned`);
+  return res.map(messageFromDto);
+}
+
+export async function pinMessage(chatPublicId: string, messagePublicId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/chats/${chatPublicId}/messages/${messagePublicId}/pin`, {
+    method: 'POST',
+  });
+}
+
+export async function unpinMessage(chatPublicId: string, messagePublicId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/chats/${chatPublicId}/messages/${messagePublicId}/pin`, {
+    method: 'DELETE',
+  });
 }

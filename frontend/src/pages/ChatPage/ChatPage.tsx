@@ -8,10 +8,12 @@ import { useSessionStore } from '../../entities/user/store';
 import { toggleBookmark } from '../../features/bookmarks/api';
 import { listChats } from '../../features/chats/api';
 import { guessFileKind, uploadFile } from '../../features/files/api';
+import { pinMessage } from '../../features/groups/api';
 import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
 import { ContactPicker } from './ContactPicker';
 import { ForwardModal } from './ForwardModal';
 import { InviteModal } from './InviteModal';
+import { PinnedCarousel } from './PinnedCarousel';
 import {
   deleteMessage,
   editMessage,
@@ -196,6 +198,11 @@ export function ChatPage() {
     },
   });
 
+  const pinMutation = useMutation({
+    mutationFn: (messagePublicId: string) => pinMessage(chatId!, messagePublicId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['pinned', chatId] }),
+  });
+
   const forwardMutation = useMutation({
     mutationFn: ({
       targetChatPublicId,
@@ -329,6 +336,17 @@ export function ChatPage() {
         ) : null}
       </header>
 
+      {chat?.type === 'group' ? (
+        <PinnedCarousel
+          chatPublicId={chatId}
+          canUnpin={chat.myRole === 'owner' || chat.myRole === 'admin'}
+          onMessageClick={(messagePublicId) => {
+            const el = listRef.current?.querySelector(`[data-message-id="${messagePublicId}"]`);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
+        />
+      ) : null}
+
       <div className={styles.list} ref={listRef}>
         {messages.map((message) => {
           const showSeparator = dayKey(message.createdAt) !== lastDay;
@@ -367,6 +385,11 @@ export function ChatPage() {
                 onImageClick={setLightboxUrl}
                 onToggleBookmark={() => bookmarkMutation.mutate(message.messagePublicId)}
                 onForward={() => setForwardingMessage(message)}
+                onPin={
+                  chat?.type === 'group'
+                    ? () => pinMutation.mutate(message.messagePublicId)
+                    : undefined
+                }
               />
             </div>
           );

@@ -108,6 +108,10 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
 - `POST /api/v1/invites/{token}/join` — вступление по ссылке (нужна авторизация); повторно
   приглашённый вышедший участник реактивирует свою же строку `chat_members`; для
   забаненного (`banned_at` не NULL) — `403 banned_from_chat`.
+- `GET /api/v1/chats/{id}/pinned` — список закреплённых сообщений группы (новые сверху).
+  `POST/DELETE /api/v1/chats/{id}/messages/{message_id}/pin` — закрепить/открепить
+  (нужен `can_pin`; только для групп — `400 not_a_group` для direct/saved). Оба действия
+  рассылают `pinned.updated` по WS и создают системное сообщение `message_pinned`.
 
 ## WebSocket `/ws`
 
@@ -131,6 +135,7 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
 | `read.updated` | `chat_id`, `user_public_id`, `last_read_message_id` |
 | `draft.updated` | `chat_id`, `body`, `reply_to_id` |
 | `poll.updated` | `message_id`, агрегированные голоса |
+| `pinned.updated` | `chat_public_id`, `pinned: MessageOut[]` (полный список закреплённых) |
 
 ### Клиент → сервер
 

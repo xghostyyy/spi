@@ -24,6 +24,11 @@ interface PresencePayload {
   last_seen_at: string | null;
 }
 
+interface PinnedUpdatedPayload {
+  chat_public_id: string;
+  pinned: MessageDto[];
+}
+
 function upsertMessageInList(messages: Message[] | undefined, message: Message): Message[] {
   if (!messages) return [message];
   const idx = messages.findIndex((m) => m.messagePublicId === message.messagePublicId);
@@ -83,6 +88,14 @@ export function useRealtimeSync(): void {
         case 'read.updated': {
           const payload = event.payload as { chat_id: string };
           void queryClient.invalidateQueries({ queryKey: ['messages', payload.chat_id] });
+          break;
+        }
+        case 'pinned.updated': {
+          const payload = event.payload as PinnedUpdatedPayload;
+          queryClient.setQueryData<Message[]>(
+            ['pinned', payload.chat_public_id],
+            payload.pinned.map(messageFromDto),
+          );
           break;
         }
         default:

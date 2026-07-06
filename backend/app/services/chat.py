@@ -24,6 +24,7 @@ from app.db.models import (
     MessageBookmark,
     MessageReaction,
     MessageType,
+    PinnedMessage,
     User,
 )
 from app.ws.events import broadcast_to_chat
@@ -48,6 +49,10 @@ INVITE_EXPIRED = HTTPException(
 BANNED_FROM_CHAT = HTTPException(
     status.HTTP_403_FORBIDDEN,
     detail={"code": "banned_from_chat", "message": "Вы были удалены из этого чата"},
+)
+MESSAGE_NOT_FOUND = HTTPException(
+    status.HTTP_404_NOT_FOUND,
+    detail={"code": "message_not_found", "message": "Сообщение не найдено"},
 )
 
 _ADMIN_PERMISSIONS = frozenset(
@@ -487,6 +492,44 @@ async def build_message_out(
         attachments=attachments,
         bookmarked=bookmarked,
     )
+
+
+async def list_pinned_messages(db: AsyncSession, chat: Chat, viewer_id: int) -> list[MessageOut]:
+    result = await db.execute(
+        select(Message)
+        .join(PinnedMessage, PinnedMessage.message_id == Message.id)
+        .where(PinnedMessage.chat_id == chat.id)
+        .order_by(PinnedMessage.pinned_at.desc())
+    )
+    return [await build_message_out(db, message, chat, viewer_id) for message in result.scalars()]
+
+
+async def pin_message(db: AsyncSession, chat: Chat, message: Message, user: User) -> None:
+    stmt = (
+        pg_insert(PinnedMessage)
+        .values(
+            chat_id=chat.id,
+            message_id=message.id,
+            pinned_by=user.id,
+            pinned_at=datetime.now(UTC),
+        )
+        .on_conflict_do_nothing(index_elements=["chat_id", "message_id"])
+    )
+    await db.execute(stmt)
+    await db.commit()
+
+
+async def unpin_message(db: AsyncSession, chat_id: int, message_id: int) -> None:
+    result = await db.execute(
+        select(PinnedMessage).where(
+            PinnedMessage.chat_id == chat_id, PinnedMessage.message_id == message_id
+        )
+    )
+    pinned = result.scalar_one_or_none()
+    if pinned is None:
+        return
+    await db.delete(pinned)
+    await db.commit()
 
 
 async def build_chat_out(db: AsyncSession, chat: Chat, member: ChatMember, viewer: User) -> ChatOut:
