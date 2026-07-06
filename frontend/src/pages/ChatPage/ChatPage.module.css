@@ -69,6 +69,15 @@
   border-radius: var(--radius-pill);
 }
 
+.systemMessage {
+  display: block;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  margin: var(--space-2) auto;
+  padding: 4px 12px;
+}
+
 .messageWrap {
   position: relative;
   padding: 0 var(--space-3);

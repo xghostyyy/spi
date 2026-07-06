@@ -8,13 +8,14 @@ import { useSessionStore } from '../../entities/user/store';
 import { toggleBookmark } from '../../features/bookmarks/api';
 import { listChats } from '../../features/chats/api';
 import { guessFileKind, uploadFile } from '../../features/files/api';
-import { pinMessage } from '../../features/groups/api';
+import { listGroupMembers, pinMessage } from '../../features/groups/api';
 import { useVoiceRecorder } from '../../features/messages/useVoiceRecorder';
 import { ContactPicker } from './ContactPicker';
 import { ForwardModal } from './ForwardModal';
 import { InviteModal } from './InviteModal';
 import { PinnedCarousel } from './PinnedCarousel';
 import { PollCreator } from './PollCreator';
+import { SystemMessageRow } from './SystemMessageRow';
 import {
   closePoll,
   deleteMessage,
@@ -114,6 +115,17 @@ export function ChatPage() {
   const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
   const chat = chatsQuery.data?.find((c) => c.chatPublicId === chatId);
   const typing = useTypingStore((s) => (chatId ? s.byChat[chatId] : null));
+
+  const membersQuery = useQuery({
+    queryKey: ['members', chatId],
+    queryFn: () => listGroupMembers(chatId!),
+    enabled: !!chatId && chat?.type === 'group',
+  });
+  const memberNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const member of membersQuery.data ?? []) map[member.userPublicId] = member.displayName;
+    return map;
+  }, [membersQuery.data]);
 
   const messagesQuery = useQuery({
     queryKey: ['messages', chatId],
@@ -392,43 +404,50 @@ export function ChatPage() {
                   <span>{formatDateSeparator(message.createdAt, t)}</span>
                 </div>
               ) : null}
-              <MessageRow
-                message={message}
-                isOwn={message.senderPublicId === me?.publicId}
-                quotedMessage={
-                  message.replyToPublicId
-                    ? messageByPublicId.get(message.replyToPublicId)
-                    : undefined
-                }
-                onReply={() => setReplyTo(message)}
-                onQuoteClick={() => {
-                  const el = listRef.current?.querySelector(
-                    `[data-message-id="${message.replyToPublicId}"]`,
-                  );
-                  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }}
-                onToggleHeart={() =>
-                  reactionMutation.mutate({ messagePublicId: message.messagePublicId })
-                }
-                onEdit={(body) =>
-                  editMutation.mutate({ messagePublicId: message.messagePublicId, body })
-                }
-                onDelete={(scope) =>
-                  deleteMutation.mutate({ messagePublicId: message.messagePublicId, scope })
-                }
-                onImageClick={setLightboxUrl}
-                onToggleBookmark={() => bookmarkMutation.mutate(message.messagePublicId)}
-                onForward={() => setForwardingMessage(message)}
-                onPin={
-                  chat?.type === 'group'
-                    ? () => pinMutation.mutate(message.messagePublicId)
-                    : undefined
-                }
-                onVotePoll={(optionPositions) =>
-                  voteMutation.mutate({ messagePublicId: message.messagePublicId, optionPositions })
-                }
-                onClosePoll={() => closePollMutation.mutate(message.messagePublicId)}
-              />
+              {message.type === 'system' ? (
+                <SystemMessageRow message={message} memberNames={memberNames} locale={locale} />
+              ) : (
+                <MessageRow
+                  message={message}
+                  isOwn={message.senderPublicId === me?.publicId}
+                  quotedMessage={
+                    message.replyToPublicId
+                      ? messageByPublicId.get(message.replyToPublicId)
+                      : undefined
+                  }
+                  onReply={() => setReplyTo(message)}
+                  onQuoteClick={() => {
+                    const el = listRef.current?.querySelector(
+                      `[data-message-id="${message.replyToPublicId}"]`,
+                    );
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                  onToggleHeart={() =>
+                    reactionMutation.mutate({ messagePublicId: message.messagePublicId })
+                  }
+                  onEdit={(body) =>
+                    editMutation.mutate({ messagePublicId: message.messagePublicId, body })
+                  }
+                  onDelete={(scope) =>
+                    deleteMutation.mutate({ messagePublicId: message.messagePublicId, scope })
+                  }
+                  onImageClick={setLightboxUrl}
+                  onToggleBookmark={() => bookmarkMutation.mutate(message.messagePublicId)}
+                  onForward={() => setForwardingMessage(message)}
+                  onPin={
+                    chat?.type === 'group'
+                      ? () => pinMutation.mutate(message.messagePublicId)
+                      : undefined
+                  }
+                  onVotePoll={(optionPositions) =>
+                    voteMutation.mutate({
+                      messagePublicId: message.messagePublicId,
+                      optionPositions,
+                    })
+                  }
+                  onClosePoll={() => closePollMutation.mutate(message.messagePublicId)}
+                />
+              )}
             </div>
           );
         })}
