@@ -1,10 +1,42 @@
 import { resolveMediaUrl } from '../../shared/api/client';
-import type { FileAttachment, FileKind, Message, MessageStatus, Reaction } from './model';
+import type { FileAttachment, FileKind, Message, MessageStatus, Poll, Reaction } from './model';
 
 interface ReactionDto {
   emoji: string;
   count: number;
   reacted_by_me: boolean;
+}
+
+interface PollOptionDto {
+  position: number;
+  text: string;
+  votes: number;
+  voted_by_me: boolean;
+}
+
+interface PollDto {
+  question: string;
+  is_anonymous: boolean;
+  multi_choice: boolean;
+  closed_at: string | null;
+  total_votes: number;
+  options: PollOptionDto[];
+}
+
+function pollFromDto(dto: PollDto): Poll {
+  return {
+    question: dto.question,
+    isAnonymous: dto.is_anonymous,
+    multiChoice: dto.multi_choice,
+    closedAt: dto.closed_at,
+    totalVotes: dto.total_votes,
+    options: dto.options.map((o) => ({
+      position: o.position,
+      text: o.text,
+      votes: o.votes,
+      votedByMe: o.voted_by_me,
+    })),
+  };
 }
 
 export interface FileDto {
@@ -28,6 +60,7 @@ export interface MessageDto {
   type: string;
   body: string | null;
   payload: Record<string, unknown> | null;
+  poll: PollDto | null;
   reply_to_public_id: string | null;
   forwarded_from_user_public_id: string | null;
   edited_at: string | null;
@@ -67,6 +100,7 @@ export function messageFromDto(dto: MessageDto): Message {
     type: dto.type,
     body: dto.body,
     payload: dto.payload,
+    poll: dto.poll ? pollFromDto(dto.poll) : null,
     replyToPublicId: dto.reply_to_public_id,
     forwardedFromUserPublicId: dto.forwarded_from_user_public_id,
     editedAt: dto.edited_at,

@@ -45,6 +45,22 @@ class FileOut(BaseModel):
         )
 
 
+class PollOptionOut(BaseModel):
+    position: int
+    text: str
+    votes: int
+    voted_by_me: bool
+
+
+class PollOut(BaseModel):
+    question: str
+    is_anonymous: bool
+    multi_choice: bool
+    closed_at: datetime | None
+    total_votes: int
+    options: list[PollOptionOut]
+
+
 class MessageOut(BaseModel):
     message_public_id: str
     chat_public_id: str
@@ -52,6 +68,7 @@ class MessageOut(BaseModel):
     type: MessageType
     body: str | None
     payload: dict[str, object] | None
+    poll: PollOut | None
     reply_to_public_id: str | None
     forwarded_from_user_public_id: str | None
     edited_at: datetime | None

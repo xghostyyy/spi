@@ -94,6 +94,19 @@ export const ru = {
   'group.invite.copied': 'Ссылка скопирована',
   'group.invite.revoke': 'Отозвать',
   'group.invite.qr': 'QR-код',
+
+  'poll.create': 'Создать опрос',
+  'poll.question': 'Вопрос',
+  'poll.option': 'Вариант',
+  'poll.addOption': 'Добавить вариант',
+  'poll.anonymous': 'Анонимный опрос',
+  'poll.multiChoice': 'Несколько ответов',
+  'poll.singleChoice': 'Один вариант ответа',
+  'poll.create.submit': 'Создать',
+  'poll.vote': 'Проголосовать',
+  'poll.votes': 'голосов',
+  'poll.closed': 'Опрос завершён',
+  'poll.close': 'Завершить опрос',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

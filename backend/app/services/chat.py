@@ -10,7 +10,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
-from app.api.schemas import ChatMemberOut, ChatOut, FileOut, MessageOut, ReactionSummary
+from app.api.schemas import (
+    ChatMemberOut,
+    ChatOut,
+    FileOut,
+    MessageOut,
+    PollOptionOut,
+    PollOut,
+    ReactionSummary,
+)
 from app.core.security import generate_invite_token
 from app.db.models import (
     Chat,
@@ -25,6 +33,9 @@ from app.db.models import (
     MessageReaction,
     MessageType,
     PinnedMessage,
+    Poll,
+    PollOption,
+    PollVote,
     User,
 )
 from app.ws.events import broadcast_to_chat
@@ -441,6 +452,55 @@ async def get_attachments(db: AsyncSession, message_id: int) -> list[FileOut]:
     return [FileOut.from_model(file) for file in result.scalars().all()]
 
 
+async def build_poll_out(db: AsyncSession, message_id: int, viewer_id: int) -> PollOut | None:
+    poll_result = await db.execute(select(Poll).where(Poll.message_id == message_id))
+    poll = poll_result.scalar_one_or_none()
+    if poll is None:
+        return None
+
+    options_result = await db.execute(
+        select(PollOption).where(PollOption.poll_id == message_id).order_by(PollOption.position)
+    )
+    options = options_result.scalars().all()
+    option_ids = [o.id for o in options]
+
+    counts: dict[int, int] = {}
+    if option_ids:
+        votes_result = await db.execute(
+            select(PollVote.option_id, func.count(PollVote.user_id))
+            .where(PollVote.option_id.in_(option_ids))
+            .group_by(PollVote.option_id)
+        )
+        for option_id, count in votes_result.all():
+            counts[option_id] = count
+
+        my_votes_result = await db.execute(
+            select(PollVote.option_id).where(
+                PollVote.option_id.in_(option_ids), PollVote.user_id == viewer_id
+            )
+        )
+        my_option_ids = set(my_votes_result.scalars().all())
+    else:
+        my_option_ids = set()
+
+    return PollOut(
+        question=poll.question,
+        is_anonymous=poll.is_anonymous,
+        multi_choice=poll.multi_choice,
+        closed_at=poll.closed_at,
+        total_votes=sum(counts.values()),
+        options=[
+            PollOptionOut(
+                position=o.position,
+                text=o.text,
+                votes=counts.get(o.id, 0),
+                voted_by_me=o.id in my_option_ids,
+            )
+            for o in options
+        ],
+    )
+
+
 async def build_message_out(
     db: AsyncSession, message: Message, chat: Chat, viewer_id: int
 ) -> MessageOut:
@@ -474,6 +534,11 @@ async def build_message_out(
         )
     )
     bookmarked = bookmark_result.scalar_one_or_none() is not None
+    poll = (
+        None
+        if is_deleted or message.type != MessageType.poll
+        else await build_poll_out(db, message.id, viewer_id)
+    )
 
     return MessageOut(
         message_public_id=message.public_id,
@@ -482,6 +547,7 @@ async def build_message_out(
         type=message.type,
         body=None if is_deleted else message.body,
         payload=None if is_deleted else message.payload,
+        poll=poll,
         reply_to_public_id=reply_to_public_id,
         forwarded_from_user_public_id=forwarded_from_user_public_id,
         edited_at=message.edited_at,

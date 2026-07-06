@@ -8,7 +8,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
@@ -24,6 +24,9 @@ from app.db.models import (
     MessageHidden,
     MessageReaction,
     MessageType,
+    Poll,
+    PollOption,
+    PollVote,
     User,
 )
 from app.db.session import get_db
@@ -58,6 +61,13 @@ class LocationPayload(BaseModel):
     lng: float = Field(ge=-180, le=180)
 
 
+class PollPayload(BaseModel):
+    question: str = Field(min_length=1, max_length=255)
+    options: list[str] = Field(min_length=2, max_length=10)
+    is_anonymous: bool = True
+    multi_choice: bool = False
+
+
 class SendMessageBody(BaseModel):
     client_msg_id: uuid.UUID
     body: str | None = Field(default=None, max_length=8000)
@@ -66,6 +76,11 @@ class SendMessageBody(BaseModel):
     forward_from_message_public_id: str | None = None
     contact: ContactPayload | None = None
     location: LocationPayload | None = None
+    poll: PollPayload | None = None
+
+
+class PollVoteBody(BaseModel):
+    option_positions: list[int] = Field(min_length=1, max_length=10)
 
 
 class EditMessageBody(BaseModel):
@@ -151,6 +166,8 @@ async def send_message(
     forwarded_from_user_id: int | None = None
     payload: dict[str, object] | None = None
     attachments_to_link: list[tuple[int, int]] = []
+    poll_to_create: PollPayload | None = None
+    message_type: MessageType
 
     if body.forward_from_message_public_id:
         source_result = await db.execute(
@@ -159,6 +176,11 @@ async def send_message(
         source = source_result.scalar_one_or_none()
         if source is None or source.deleted_for_all_at is not None:
             raise _MESSAGE_NOT_FOUND
+        if source.type == MessageType.poll:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail={"code": "cannot_forward_poll", "message": "Опрос нельзя переслать"},
+            )
         source_member_result = await db.execute(
             select(ChatMember).where(
                 ChatMember.chat_id == source.chat_id,
@@ -188,6 +210,10 @@ async def send_message(
         message_type = MessageType.location
         final_body = None
         payload = body.location.model_dump()
+    elif body.poll is not None:
+        message_type = MessageType.poll
+        final_body = None
+        poll_to_create = body.poll
     else:
         if not (body.body and body.body.strip()) and not body.file_public_ids:
             raise HTTPException(
@@ -255,6 +281,17 @@ async def send_message(
     else:
         for file_id, position in attachments_to_link:
             db.add(MessageAttachment(message_id=message_id, file_id=file_id, position=position))
+        if poll_to_create is not None:
+            db.add(
+                Poll(
+                    message_id=message_id,
+                    question=poll_to_create.question,
+                    is_anonymous=poll_to_create.is_anonymous,
+                    multi_choice=poll_to_create.multi_choice,
+                )
+            )
+            for position, text in enumerate(poll_to_create.options):
+                db.add(PollOption(poll_id=message_id, text=text, position=position))
         chat.updated_at = now
         await db.commit()
         message_result = await db.execute(select(Message).where(Message.id == message_id))
@@ -373,4 +410,97 @@ async def toggle_reaction(
     await db.commit()
     out = await build_message_out(db, message, chat, user.id)
     await broadcast_to_chat(db, chat.id, "reaction.updated", out.model_dump(mode="json"))
+    return out
+
+
+_POLL_NOT_FOUND = HTTPException(
+    status.HTTP_404_NOT_FOUND, detail={"code": "poll_not_found", "message": "Опрос не найден"}
+)
+_POLL_CLOSED = HTTPException(
+    status.HTTP_400_BAD_REQUEST, detail={"code": "poll_closed", "message": "Опрос уже закрыт"}
+)
+
+
+async def _get_poll_or_404(db: AsyncSession, message: Message) -> Poll:
+    if message.type != MessageType.poll:
+        raise _POLL_NOT_FOUND
+    poll_result = await db.execute(select(Poll).where(Poll.message_id == message.id))
+    poll = poll_result.scalar_one_or_none()
+    if poll is None:
+        raise _POLL_NOT_FOUND
+    return poll
+
+
+@router.post("/{message_public_id}/poll/vote", response_model=MessageOut)
+async def vote_poll(
+    chat_public_id: str,
+    message_public_id: str,
+    body: PollVoteBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageOut:
+    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+    message = await _get_message_or_404(db, chat.id, message_public_id)
+    poll = await _get_poll_or_404(db, message)
+    if poll.closed_at is not None:
+        raise _POLL_CLOSED
+
+    options_result = await db.execute(
+        select(PollOption).where(PollOption.poll_id == poll.message_id)
+    )
+    options_by_position = {o.position: o for o in options_result.scalars().all()}
+
+    positions = set(body.option_positions)
+    if not poll.multi_choice and len(positions) != 1:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "single_choice_only",
+                "message": "В этом опросе можно выбрать только один вариант",
+            },
+        )
+    if not positions.issubset(options_by_position.keys()):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={"code": "invalid_option", "message": "Недопустимый вариант ответа"},
+        )
+
+    all_option_ids = [o.id for o in options_by_position.values()]
+    await db.execute(
+        delete(PollVote).where(PollVote.option_id.in_(all_option_ids), PollVote.user_id == user.id)
+    )
+    now = datetime.now(UTC)
+    for position in positions:
+        db.add(
+            PollVote(option_id=options_by_position[position].id, user_id=user.id, created_at=now)
+        )
+
+    await db.commit()
+    out = await build_message_out(db, message, chat, user.id)
+    await broadcast_to_chat(db, chat.id, "poll.updated", out.model_dump(mode="json"))
+    return out
+
+
+@router.post("/{message_public_id}/poll/close", response_model=MessageOut)
+async def close_poll(
+    chat_public_id: str,
+    message_public_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageOut:
+    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+    message = await _get_message_or_404(db, chat.id, message_public_id)
+    poll = await _get_poll_or_404(db, message)
+
+    if message.sender_id != user.id:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail={"code": "not_owner", "message": "Закрыть опрос может только его автор"},
+        )
+    if poll.closed_at is None:
+        poll.closed_at = datetime.now(UTC)
+        await db.commit()
+
+    out = await build_message_out(db, message, chat, user.id)
+    await broadcast_to_chat(db, chat.id, "poll.updated", out.model_dump(mode="json"))
     return out

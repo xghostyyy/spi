@@ -17,6 +17,7 @@ import {
 } from '../../shared/ui/icons';
 import styles from './ChatPage.module.css';
 import { MessageAttachments } from './MessageAttachments';
+import { PollView } from './PollView';
 
 interface MessageRowProps {
   message: Message;
@@ -31,6 +32,8 @@ interface MessageRowProps {
   onToggleBookmark: () => void;
   onForward: () => void;
   onPin?: () => void;
+  onVotePoll: (optionPositions: number[]) => void;
+  onClosePoll: () => void;
 }
 
 function formatTime(iso: string): string {
@@ -57,8 +60,18 @@ function renderWithMentions(text: string) {
   return nodes;
 }
 
-function SpecialContent({ message }: { message: Message }) {
+interface SpecialContentProps {
+  message: Message;
+  isOwn: boolean;
+  onVotePoll: (optionPositions: number[]) => void;
+  onClosePoll: () => void;
+}
+
+function SpecialContent({ message, isOwn, onVotePoll, onClosePoll }: SpecialContentProps) {
   const t = useT();
+  if (message.type === 'poll' && message.poll) {
+    return <PollView poll={message.poll} isOwn={isOwn} onVote={onVotePoll} onClose={onClosePoll} />;
+  }
   if (message.type === 'contact' && message.payload) {
     const contact = message.payload as ContactPayload;
     return (
@@ -104,6 +117,8 @@ export function MessageRow({
   onToggleBookmark,
   onForward,
   onPin,
+  onVotePoll,
+  onClosePoll,
 }: MessageRowProps) {
   const t = useT();
   const [editing, setEditing] = useState(false);
@@ -234,7 +249,12 @@ export function MessageRow({
             {message.forwardedFromUserPublicId ? (
               <div className={styles.forwardedLabel}>{t('common.forwardedFrom')}</div>
             ) : null}
-            <SpecialContent message={message} />
+            <SpecialContent
+              message={message}
+              isOwn={isOwn}
+              onVotePoll={onVotePoll}
+              onClosePoll={onClosePoll}
+            />
             <MessageAttachments
               attachments={message.attachments}
               type={message.type}

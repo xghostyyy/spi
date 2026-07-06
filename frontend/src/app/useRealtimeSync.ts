@@ -50,7 +50,8 @@ export function useRealtimeSync(): void {
       switch (event.type) {
         case 'message.new':
         case 'message.edited':
-        case 'reaction.updated': {
+        case 'reaction.updated':
+        case 'poll.updated': {
           const message = messageFromDto(event.payload as MessageDto);
           queryClient.setQueryData<Message[]>(['messages', message.chatPublicId], (prev) =>
             upsertMessageInList(prev, message),

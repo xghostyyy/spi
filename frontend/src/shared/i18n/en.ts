@@ -96,4 +96,17 @@ export const en: Record<TranslationKey, string> = {
   'group.invite.copied': 'Link copied',
   'group.invite.revoke': 'Revoke',
   'group.invite.qr': 'QR code',
+
+  'poll.create': 'Create poll',
+  'poll.question': 'Question',
+  'poll.option': 'Option',
+  'poll.addOption': 'Add option',
+  'poll.anonymous': 'Anonymous poll',
+  'poll.multiChoice': 'Multiple answers',
+  'poll.singleChoice': 'Single choice',
+  'poll.create.submit': 'Create',
+  'poll.vote': 'Vote',
+  'poll.votes': 'votes',
+  'poll.closed': 'Poll closed',
+  'poll.close': 'Close poll',
 };

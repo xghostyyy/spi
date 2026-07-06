@@ -112,6 +112,17 @@ refresh-токен — httpOnly cookie `spi_refresh` (ротация на каж
   `POST/DELETE /api/v1/chats/{id}/messages/{message_id}/pin` — закрепить/открепить
   (нужен `can_pin`; только для групп — `400 not_a_group` для direct/saved). Оба действия
   рассылают `pinned.updated` по WS и создают системное сообщение `message_pinned`.
+- `POST .../messages` также принимает `poll: {question, options[2..10], is_anonymous?,
+  multi_choice?}` — создаёт `type=poll` сообщение с таблицами `polls`/`poll_options`.
+  Опрос нельзя переслать (`400 cannot_forward_poll`). `MessageOut.poll` содержит вопрос,
+  флаги, `closed_at`, `total_votes` и список опций (`position`, `text`, `votes`,
+  `voted_by_me`) — позиция (`position`), а не внутренний ID, используется как идентификатор
+  варианта в API, чтобы не светить сырые PK.
+- `POST .../messages/{id}/poll/vote` — `{option_positions: number[]}`; для не-`multi_choice`
+  опроса допустима ровно одна позиция (иначе `400 single_choice_only`); повторное
+  голосование заменяет предыдущий выбор, а не добавляет к нему. `POST .../poll/close` —
+  закрыть опрос досрочно (только автор сообщения, иначе `403`). Оба рассылают
+  `poll.updated` (payload — `MessageOut` целиком, как и `reaction.updated`).
 
 ## WebSocket `/ws`
 

@@ -238,3 +238,13 @@ export function PinIcon({ size, className }: IconProps) {
     </svg>
   );
 }
+
+export function PollIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <line x1="6" y1="20" x2="6" y2="12" />
+      <line x1="12" y1="20" x2="12" y2="6" />
+      <line x1="18" y1="20" x2="18" y2="15" />
+    </svg>
+  );
+}

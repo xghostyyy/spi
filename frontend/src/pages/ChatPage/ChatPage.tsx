@@ -14,12 +14,15 @@ import { ContactPicker } from './ContactPicker';
 import { ForwardModal } from './ForwardModal';
 import { InviteModal } from './InviteModal';
 import { PinnedCarousel } from './PinnedCarousel';
+import { PollCreator } from './PollCreator';
 import {
+  closePoll,
   deleteMessage,
   editMessage,
   listMessages,
   sendMessage,
   toggleReaction,
+  votePoll,
 } from '../../features/messages/api';
 import { pluralRu, useLocaleStore, useT } from '../../shared/i18n';
 import { Avatar } from '../../shared/ui/Avatar';
@@ -35,6 +38,7 @@ import {
   MicIcon,
   PaperclipIcon,
   PhoneIcon,
+  PollIcon,
   SendIcon,
   TrashIcon,
 } from '../../shared/ui/icons';
@@ -100,6 +104,7 @@ export function ChatPage() {
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showPollCreator, setShowPollCreator] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -237,6 +242,35 @@ export function ChatPage() {
       void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
       void queryClient.invalidateQueries({ queryKey: ['chats'] });
     },
+  });
+
+  const pollMutation = useMutation({
+    mutationFn: (poll: {
+      question: string;
+      options: string[];
+      isAnonymous: boolean;
+      multiChoice: boolean;
+    }) => sendMessage(chatId!, { clientMsgId: crypto.randomUUID(), poll }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+
+  const voteMutation = useMutation({
+    mutationFn: ({
+      messagePublicId,
+      optionPositions,
+    }: {
+      messagePublicId: string;
+      optionPositions: number[];
+    }) => votePoll(chatId!, messagePublicId, optionPositions),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['messages', chatId] }),
+  });
+
+  const closePollMutation = useMutation({
+    mutationFn: (messagePublicId: string) => closePoll(chatId!, messagePublicId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['messages', chatId] }),
   });
 
   function handleDraftChange(value: string) {
@@ -390,6 +424,10 @@ export function ChatPage() {
                     ? () => pinMutation.mutate(message.messagePublicId)
                     : undefined
                 }
+                onVotePoll={(optionPositions) =>
+                  voteMutation.mutate({ messagePublicId: message.messagePublicId, optionPositions })
+                }
+                onClosePoll={() => closePollMutation.mutate(message.messagePublicId)}
               />
             </div>
           );
@@ -447,6 +485,9 @@ export function ChatPage() {
             </IconButton>
             <IconButton label={t('common.contact')} onClick={() => setShowContactPicker(true)}>
               <ContactIcon />
+            </IconButton>
+            <IconButton label={t('poll.create')} onClick={() => setShowPollCreator(true)}>
+              <PollIcon />
             </IconButton>
             <Input
               className={styles.composerInput}
@@ -515,6 +556,16 @@ export function ChatPage() {
 
       {showInviteModal && chatId ? (
         <InviteModal chatPublicId={chatId} onClose={() => setShowInviteModal(false)} />
+      ) : null}
+
+      {showPollCreator ? (
+        <PollCreator
+          onClose={() => setShowPollCreator(false)}
+          onSubmit={(poll) => {
+            pollMutation.mutate(poll);
+            setShowPollCreator(false);
+          }}
+        />
       ) : null}
     </div>
   );

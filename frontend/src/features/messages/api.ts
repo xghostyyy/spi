@@ -18,6 +18,12 @@ export async function sendMessage(
     forwardFromMessagePublicId?: string;
     contact?: { name: string; phone: string };
     location?: { lat: number; lng: number };
+    poll?: {
+      question: string;
+      options: string[];
+      isAnonymous?: boolean;
+      multiChoice?: boolean;
+    };
   },
 ): Promise<Message> {
   const res = await apiFetch<MessageDto>(`/api/v1/chats/${chatPublicId}/messages`, {
@@ -30,8 +36,36 @@ export async function sendMessage(
       forward_from_message_public_id: input.forwardFromMessagePublicId ?? null,
       contact: input.contact ?? null,
       location: input.location ?? null,
+      poll: input.poll
+        ? {
+            question: input.poll.question,
+            options: input.poll.options,
+            is_anonymous: input.poll.isAnonymous ?? true,
+            multi_choice: input.poll.multiChoice ?? false,
+          }
+        : null,
     },
   });
+  return messageFromDto(res);
+}
+
+export async function votePoll(
+  chatPublicId: string,
+  messagePublicId: string,
+  optionPositions: number[],
+): Promise<Message> {
+  const res = await apiFetch<MessageDto>(
+    `/api/v1/chats/${chatPublicId}/messages/${messagePublicId}/poll/vote`,
+    { method: 'POST', body: { option_positions: optionPositions } },
+  );
+  return messageFromDto(res);
+}
+
+export async function closePoll(chatPublicId: string, messagePublicId: string): Promise<Message> {
+  const res = await apiFetch<MessageDto>(
+    `/api/v1/chats/${chatPublicId}/messages/${messagePublicId}/poll/close`,
+    { method: 'POST' },
+  );
   return messageFromDto(res);
 }
 

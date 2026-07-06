@@ -32,6 +32,22 @@ export interface LocationPayload {
   lng: number;
 }
 
+export interface PollOption {
+  position: number;
+  text: string;
+  votes: number;
+  votedByMe: boolean;
+}
+
+export interface Poll {
+  question: string;
+  isAnonymous: boolean;
+  multiChoice: boolean;
+  closedAt: string | null;
+  totalVotes: number;
+  options: PollOption[];
+}
+
 export interface Message {
   messagePublicId: string;
   chatPublicId: string;
@@ -39,6 +55,7 @@ export interface Message {
   type: string;
   body: string | null;
   payload: ContactPayload | LocationPayload | Record<string, unknown> | null;
+  poll: Poll | null;
   replyToPublicId: string | null;
   forwardedFromUserPublicId: string | null;
   editedAt: string | null;

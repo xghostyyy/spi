@@ -206,6 +206,101 @@
   flex-shrink: 0;
 }
 
+.pollCreatorBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.pollOptionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pollAddOption {
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: var(--space-2) 0;
+}
+
+.pollAddOption:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pollToggleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.pollCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 220px;
+}
+
+.pollQuestion {
+  font-weight: 600;
+}
+
+.pollMeta {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.pollOption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+.pollOption:disabled {
+  cursor: default;
+}
+
+.pollOptionRowLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pollCheckbox {
+  margin-right: var(--space-2);
+}
+
+.pollBarTrack {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-secondary);
+  overflow: hidden;
+}
+
+.pollBarFill {
+  height: 100%;
+  background: var(--color-accent);
+}
+
 .messageActions {
   position: absolute;
   top: -4px;
