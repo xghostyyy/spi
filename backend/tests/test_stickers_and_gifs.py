@@ -41,7 +41,7 @@ async def test_send_sticker_message(
         },
         headers=headers,
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     body = resp.json()
     assert body["type"] == "sticker"
     assert body["payload"]["sticker_id"] == "wave"
@@ -67,7 +67,7 @@ async def test_send_gif_message(client: httpx.AsyncClient, monkeypatch: pytest.M
         },
         headers=headers,
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     body = resp.json()
     assert body["type"] == "gif"
     assert body["payload"]["url"] == "https://example.com/cat.gif"
