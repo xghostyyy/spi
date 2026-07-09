@@ -8,9 +8,23 @@ export interface WsEvent {
 
 type Listener = (event: WsEvent) => void;
 
-const WS_BASE_URL = (import.meta.env.VITE_WS_URL as string | undefined) ?? 'ws://localhost:8000/ws';
 const MAX_BACKOFF_MS = 15_000;
 const PING_INTERVAL_MS = 25_000;
+
+/**
+ * Адрес WebSocket:
+ * - VITE_WS_URL задан непустым (dev или split-origin деплой) → используем его;
+ * - VITE_WS_URL === '' (прод-сборка, same-origin за Caddy) → выводим из
+ *   window.location: тот же хост, wss на https, ws на http;
+ * - VITE_WS_URL не задан вовсе → дефолт для локальной разработки.
+ */
+function resolveWsBaseUrl(): string {
+  const configured = import.meta.env.VITE_WS_URL as string | undefined;
+  if (configured === undefined) return 'ws://localhost:8000/ws';
+  if (configured) return configured;
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${proto}://${window.location.host}/ws`;
+}
 
 class WsClient {
   private socket: WebSocket | null = null;
@@ -50,7 +64,7 @@ class WsClient {
       const { ticket } = await apiFetch<{ ticket: string }>('/api/v1/auth/ws-ticket', {
         method: 'POST',
       });
-      const socket = new WebSocket(`${WS_BASE_URL}?ticket=${encodeURIComponent(ticket)}`);
+      const socket = new WebSocket(`${resolveWsBaseUrl()}?ticket=${encodeURIComponent(ticket)}`);
       this.socket = socket;
 
       socket.onopen = () => {

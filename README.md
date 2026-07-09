@@ -31,8 +31,9 @@ npm install
 npm run dev                                          # http://localhost:5173
 ```
 
-Подробности локального запуска, демо-деплоя (Vercel + Render + Supabase) и
-продакшена на VPS — `docs/03-SETUP-DEPLOY.md`.
+Деплой (демо и прод) — единый Docker-стек (Caddy + FastAPI + Postgres) на одном VPS,
+`docker compose up -d`; пошагово, включая тестовый деплой на VPS в РФ — в
+`docs/03-SETUP-DEPLOY.md` (см. также `docs/DECISIONS.md`, ADR-023).
 
 ## Проверки
 

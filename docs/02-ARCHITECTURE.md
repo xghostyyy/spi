@@ -10,36 +10,31 @@
 | Real-time | WebSocket (native) + переподключение | Единый канал событий |
 | Backend | **Python 3.12 + FastAPI** | Async, WebSocket из коробки, OpenAPI автоматически |
 | ORM | **SQLAlchemy 2 (async) + Alembic** | Миграции, типобезопасность |
-| БД | **PostgreSQL 16 везде** (Supabase в демо, контейнер на VPS) | Один диалект демо=прод, русский полнотекстовый поиск, JSONB; переезд = `pg_dump`/`pg_restore` |
-| Файлы | Supabase Storage (демо) / локальный диск или MinIO (VPS) | Абстракция StorageService |
+| БД | **PostgreSQL 16 везде** (контейнер в том же compose; managed — опционально) | Один диалект демо=прод, русский полнотекстовый поиск, JSONB; переезд = `pg_dump`/`pg_restore` |
+| Файлы | Локальный диск (постоянный том `uploads`) / MinIO / S3 | Абстракция StorageService |
 | Push | Web Push (pywebpush, VAPID) | Работает на iOS PWA 16.4+ |
 | Почта | SMTP (aiosmtplib) / Resend API | Коды входа |
 | Кэш/PubSub | Redis (опционально в MVP; обязателен при >1 инстанса API) | Fan-out WS-событий |
-| Деплой демо | Vercel (front) + Render/Railway (API) + Supabase (БД+Storage) | Бесплатный публичный URL |
-| Деплой prod | VPS: Docker Compose (nginx + api + postgres + redis + certbot) | Полный контроль |
+| Деплой демо и prod | **Один VPS: Docker Compose (Caddy + api + postgres)** | Единый стек, `docker compose up -d`, авто-HTTPS (ADR-023) |
 
-> **Почему API не на Vercel:** Vercel Serverless не держит постоянные WebSocket-соединения — мессенджеру нужен long-lived процесс. Поэтому FastAPI живёт на Render/Railway (демо) или VPS (prod), а Vercel раздаёт только статику фронта.
+> **Почему всё на одном сервере (ADR-023):** приложению нужен long-lived процесс —
+> постоянный WebSocket и фоновый планировщик живут в памяти процесса. Один VPS + Caddy
+> (авто-HTTPS, единый origin) закрывает это без serverless-ограничений и без CORS;
+> тот же стек — и для демо, и для прода. Подробности деплоя — `docs/03-SETUP-DEPLOY.md`.
 
 ## 2. Схема системы
 
 ```
-                    ┌─────────────────────────────┐
-   iPhone PWA ────┐ │  Frontend (React SPA/PWA)   │
-   Android PWA ───┼─►  Vercel (демо) / nginx (VPS)│
-   Desktop Web ───┘ └───────────┬─────────────────┘
-                        HTTPS   │   WSS
-                    ┌───────────▼─────────────────┐
-                    │  FastAPI (REST + WebSocket) │
-                    │  Render/Railway (демо)      │
-                    │  Docker на VPS (prod)       │
-                    └───┬─────────┬─────────┬─────┘
-                        │         │         │
-                  ┌─────▼────┐ ┌──▼─────┐ ┌─▼───────────┐
-                  │ БД       │ │ Redis  │ │ Storage     │
-                  │ Postgres │ │(pubsub)│ │ Supabase/   │
-                  │ 16       │ │        │ │ MinIO/диск  │
-                  └──────────┘ └────────┘ └─────────────┘
+   iPhone PWA ────┐        ┌──────────── один VPS (Docker Compose) ────────────┐
+   Android PWA ───┼──────► │  Caddy :443 — авто-HTTPS, единый origin            │
+   Desktop Web ───┘  https │    /              → статика фронта (React SPA/PWA) │
+                       wss  │    /api /ws /media → api:8000                      │
+                           │  FastAPI (REST + WebSocket + планировщик, 1 воркер) │
+                           │      ├─ Postgres 16 (том pg_data)                   │
+                           │      └─ файлы: том uploads (диск) / MinIO / S3      │
+                           └────────────────────────────────────────────────────┘
                         + SMTP (коды входа) + Web Push (VAPID)
+   Redis (pubsub) — не нужен при одном инстансе; добавляется при масштабировании.
 ```
 
 ## 3. Структура репозитория (monorepo)
@@ -109,20 +104,24 @@ spi-messenger/
 - Rate limiting: slowapi (по IP + по пользователю).
 - Файлы: Content-Disposition, отдельный поддомен/route для user-content.
 
-## 5. Два профиля деплоя
+## 5. Профиль деплоя (единый для демо и прода, ADR-023)
 
-| | Демо (быстрый показ) | Продакшен (VPS) |
-|---|---|---|
-| Frontend | Vercel (авто-деплой из GitHub) | nginx (статика) |
-| API | Render / Railway (Docker) | Docker Compose, systemd |
-| БД | Supabase PostgreSQL | PostgreSQL 16 (контейнер или managed) |
-| Файлы | Supabase Storage | MinIO / локальный том |
-| Redis | не обязателен | контейнер redis |
-| HTTPS | автоматически | certbot / Caddy |
-| Переключение | — | только `DATABASE_URL`, `STORAGE_*` в `.env` |
+Демо и прод — **один и тот же Docker Compose стек** на одном VPS; различаются только
+машина, домен и (для прода) бэкапы. Пошагово — `docs/03-SETUP-DEPLOY.md`.
+
+| Компонент | Реализация |
+|---|---|
+| Frontend | статика собирается в контейнере, отдаётся Caddy (тот же origin) |
+| API | FastAPI + WebSocket в Docker, **uvicorn --workers 1** (in-process WS + планировщик) |
+| БД | PostgreSQL 16 (контейнер `postgres`, том `pg_data`) или внешняя managed по `DATABASE_URL` |
+| Файлы | том `uploads` (диск) / MinIO / S3 — через `STORAGE_BACKEND` |
+| Redis | не нужен при одном инстансе (`REDIS_URL` пуст → in-process) |
+| HTTPS | Caddy — автоматически (Let's Encrypt) |
+| Демо → прод | только сменить `DOMAIN` и секреты в `.env`, тот же `docker compose up -d` |
 
 ## 6. CI/CD (GitHub Actions)
 
 1. `lint-test`: ruff + mypy + pytest (backend), eslint + tsc + vitest (frontend) — на каждый push.
 2. `schema-check`: прогон Alembic-миграций на PostgreSQL 16 в сервис-контейнере; сверка с `db/schema.sql`.
-3. `deploy-demo`: push в `main` → Vercel деплоит фронт автоматически; Render — по deploy hook.
+3. Деплой — вручную на VPS (`git pull && docker compose up -d --build`); авто-деплой из
+   CI не настроен (единый self-hosted стек, см. `docs/03-SETUP-DEPLOY.md` §4.4).

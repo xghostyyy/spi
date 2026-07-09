@@ -1,33 +1,43 @@
-# Продакшен-профиль (VPS): nginx (статика фронта + reverse proxy + WSS),
-# api (FastAPI), postgres:16, redis. Секреты — из .env рядом с файлом.
-# Запуск: docker compose up -d
+# Прод-стек SPI Messenger на одном сервере (ADR-023, см. docs/03-SETUP-DEPLOY.md).
+# Один origin: Caddy (авто-HTTPS) отдаёт статику фронта и проксирует FastAPI + WS.
+# Запуск:  docker compose up -d
+# Секреты и домен — в .env рядом с этим файлом (шаблон: .env.example).
 name: spi-messenger
 
 services:
-  nginx:
-    image: nginx:1.27-alpine
+  # Caddy: TLS/HTTPS (Let's Encrypt), статика фронта, reverse-proxy на api (вкл. /ws).
+  caddy:
+    image: caddy:2-alpine
     depends_on:
-      - api
+      api:
+        condition: service_started
+      frontend-build:
+        condition: service_completed_successfully
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env, e.g. demo.spi-2015.ru or :80 for local http}
+      ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
-      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
-      - frontend_dist:/usr/share/nginx/html:ro
-      - certbot_www:/var/www/certbot:ro
-      - certbot_conf:/etc/letsencrypt:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - frontend_dist:/srv/www:ro
+      - caddy_data:/data
+      - caddy_config:/config
     restart: unless-stopped
 
-  # Сборка фронтенда: кладёт dist в общий том nginx и завершается.
+  # Одноразовая сборка фронта: кладёт dist в общий том frontend_dist и завершается.
   frontend-build:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     volumes:
       - frontend_dist:/out
-    command: sh -c "cp -r /app/dist/. /out/"
+    command: sh -c "rm -rf /out/* && cp -r /app/dist/. /out/"
 
+  # FastAPI + WebSocket + планировщик. ОДИН процесс (uvicorn --workers 1):
+  # ConnectionManager и планировщик живут в памяти процесса (ADR-018, ADR-023).
+  # Миграции (alembic upgrade head) накатываются на старте — см. backend/Dockerfile.
   api:
     build:
       context: ./backend
@@ -35,12 +45,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/spi_messenger}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
     volumes:
       - uploads:/data/uploads
     restart: unless-stopped
@@ -49,7 +56,7 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: spi_messenger
     volumes:
       - pg_data:/var/lib/postgresql/data
@@ -60,23 +67,9 @@ services:
       retries: 10
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - certbot_www:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
-    entrypoint: >
-      sh -c "trap exit TERM;
-             while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h; done"
-    restart: unless-stopped
-
 volumes:
   pg_data:
   uploads:
   frontend_dist:
-  certbot_www:
-  certbot_conf:
+  caddy_data:
+  caddy_config:

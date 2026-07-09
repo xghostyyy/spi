@@ -1,87 +1,93 @@
-# SPI Messenger — Установка, подключение БД и деплой (v1.0)
+# SPI Messenger — установка и деплой (v2.0)
 
-Инструкция покрывает три сценария: локальная разработка, демо-деплой (Vercel + Render + Supabase) и продакшен на собственном VPS. БД везде — PostgreSQL 16, поэтому демо и прод не отличаются ничем, кроме адресов в `.env`.
+Один и тот же **Docker Compose стек** обслуживает и тестовый (демо) деплой, и
+продакшен: **Caddy** (единая точка входа + автоматический HTTPS) отдаёт статику
+фронта и проксирует **FastAPI + WebSocket**, рядом — **PostgreSQL 16**. Всё на одном
+сервере, запуск — одна команда `docker compose up -d`. Обоснование схемы —
+`docs/DECISIONS.md`, **ADR-023**.
+
+```
+                 ┌──────────────── один VPS (Ubuntu) ────────────────┐
+   браузер ─────▶│ Caddy :443  ── авто-HTTPS (Let's Encrypt)          │
+   https / wss   │   /                     → статика фронта (SPA)     │
+                 │   /api /ws /media /docs → api:8000 (FastAPI + WS)  │
+                 │ postgres:16  (том pg_data)                          │
+                 │ тома: uploads (файлы), frontend_dist, caddy_data    │
+                 └────────────────────────────────────────────────────┘
+```
+
+**Зачем именно так:** приложению нужен долгоживущий процесс (постоянный WebSocket +
+фоновый планировщик отложенных сообщений живут в памяти процесса). Один сервер + Caddy
+даёт это без ограничений serverless, а один origin избавляет от CORS и от вшивания
+адреса бэкенда в билд фронта. HTTPS обязателен: без него не работают PWA-установка,
+Web Push, доступ к микрофону/камере в звонках и защищённые cookie.
+
+Оглавление:
+1. [Переменные окружения (`.env`)](#1-переменные-окружения-env)
+2. [Локальная разработка](#2-локальная-разработка)
+3. [Тестовый (демо) деплой на VPS в РФ — пошагово](#3-тестовый-демо-деплой-на-vps-в-рф--пошагово)
+4. [Продакшен на собственном VPS](#4-продакшен-на-собственном-vps)
+5. [Частые проблемы](#5-частые-проблемы)
 
 ---
 
-## 1. Переменные окружения
+## 1. Переменные окружения (`.env`)
 
-Все секреты — только в `.env` (файл в `.gitignore`). Шаблон — `.env.example`:
+Все секреты — только в `.env` в корне репозитория (в `.gitignore`, в репозиторий не
+попадает). Шаблон со всеми полями и комментариями — `.env.example`; скопируйте и
+заполните: `cp .env.example .env`.
 
-```env
-# --- База данных (PostgreSQL 16 везде) ---
-# Демо (Supabase):
-DATABASE_URL=postgresql+asyncpg://postgres:PASSWORD@db.xxxx.supabase.co:5432/postgres
-# Прод (контейнер на VPS):
-# DATABASE_URL=postgresql+asyncpg://spi_app:PASSWORD@postgres:5432/spi_messenger
+Ключевые переменные для деплоя:
 
-# --- Безопасность ---
-JWT_SECRET=            # openssl rand -hex 32 (на Render — generateValue в render.yaml)
-JWT_ACCESS_TTL_MIN=15
-JWT_REFRESH_TTL_DAYS=30
+| Переменная | Назначение | Пример / примечание |
+|---|---|---|
+| `DOMAIN` | Домен, на котором Caddy выпускает HTTPS | `demo.spi-2015.ru` (для локального http — `:80`) |
+| `ACME_EMAIL` | E-mail для уведомлений Let's Encrypt | необязательно |
+| `POSTGRES_PASSWORD` | Пароль Postgres в контейнере | `openssl rand -hex 16` |
+| `DATABASE_URL` | Адрес БД | **оставить пустым** — api подключится к postgres из compose |
+| `JWT_SECRET` | Подпись JWT | `openssl rand -hex 32` (в prod обязателен) |
+| `APP_ENV` | Режим | `prod` на деплое; `dev` локально |
+| `SMTP_*`, `MAIL_FROM` | Отправка кодов входа | smtp.bz, домен `spi-2015.ru` (см. §1.1) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push | `npx web-push generate-vapid-keys` (см. §1.2) |
+| `VAPID_SUBJECT` | Контакт владельца для push-сервисов | `mailto:admin@spi-2015.ru` |
+| `TENOR_API_KEY` | Поиск GIF (необязательно) | пусто = вкладка GIF скрыта |
+| `CORS_ORIGINS`, `FRONTEND_URL` | Домен фронта | при same-origin не критичны, укажите `https://<DOMAIN>` |
+| `REDIS_URL` | Оставить пустым | пусто = in-process события/планировщик (1 инстанс) |
 
-# --- Файловое хранилище ---
-STORAGE_BACKEND=local             # local | supabase (supabase — ещё не реализован, см. 3.4) | s3
-SUPABASE_URL=
-SUPABASE_SERVICE_KEY=             # только на сервере, никогда во фронт!
-STORAGE_LOCAL_PATH=/data/uploads  # для STORAGE_BACKEND=local
+Фронтенд в прод-стеке `frontend/.env` **не использует** — `frontend/Dockerfile`
+собирает его с пустыми `VITE_API_URL`/`VITE_WS_URL` (same-origin). `frontend/.env`
+нужен только для локальной разработки.
 
-# --- Почта (коды входа) — smtp.bz, домен-отправитель spi-2015.ru, см. §1.1 ---
-SMTP_HOST=smtp.bz
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASSWORD=
-MAIL_FROM=noreply@spi-2015.ru
+### 1.1. SMTP (коды входа) — smtp.bz, домен `spi-2015.ru`
 
-# --- Web Push ---
-VAPID_PUBLIC_KEY=                 # npx web-push generate-vapid-keys
-VAPID_PRIVATE_KEY=
-VAPID_SUBJECT=mailto:admin@spi-messenger.ru
+Коды входа отправляются через `smtp.bz` от имени домена `spi-2015.ru`. Приложение к
+провайдеру не привязано — `backend/app/services/mail.py` шлёт письма стандартным
+`aiosmtplib` (STARTTLS) по значениям `SMTP_*` из `.env`, сменить провайдера = сменить
+эти переменные. **Если `SMTP_HOST` пуст — код входа печатается в лог контейнера
+(`[DEV] Login code for ...`), письма не уходят** (нормально для локальной проверки).
 
-# --- Поиск GIF (Tenor) — необязательно, пусто = вкладка GIF скрыта на фронте (ADR-019) ---
-TENOR_API_KEY=
+Заказчик настроил smtp.bz заранее. Для деплоя нужно перенести значения в `.env`:
+1. Личный кабинет smtp.bz → раздел SMTP-авторизации → взять `SMTP_USER` и
+   `SMTP_PASSWORD` (логин/пароль **для SMTP**, не пароль от кабинета). `SMTP_HOST=smtp.bz`,
+   `SMTP_PORT=587` уже в шаблоне.
+2. Домен `spi-2015.ru` должен быть подтверждён в кабинете smtp.bz (SPF/DKIM
+   TXT-записи в DNS домена) — иначе письма уходят в спам/отклоняются. Это разовая
+   настройка DNS `spi-2015.ru`, вне репозитория. **Заказчик это уже сделал.**
+3. `MAIL_FROM=noreply@spi-2015.ru` (любой адрес на подтверждённом домене).
+4. Проверка после деплоя: `POST /api/v1/auth/request-code` с реальным e-mail — письмо
+   должно прийти за секунды. Если нет — первым делом перепроверить `SMTP_USER/PASSWORD`
+   и статус домена в кабинете smtp.bz, а не код приложения.
 
-# --- Прочее ---
-CORS_ORIGINS=https://spi-messenger.vercel.app,http://localhost:5173
-REDIS_URL=                        # пусто = in-process events (1 инстанс)
-FRONTEND_URL=https://spi-messenger.vercel.app
-```
+### 1.2. Web Push (VAPID-ключи)
 
-Фронтенд (`frontend/.env`):
-
-```env
-VITE_API_URL=https://spi-api.onrender.com
-VITE_WS_URL=wss://spi-api.onrender.com/ws
-```
-
-VAPID public key фронтенд не хранит в `.env` — получает его в рантайме через
-`GET /api/v1/push/vapid-public-key` (см. §3.5), чтобы значение не дублировалось
-между Vercel и Render и не требовало ребилда фронта при ротации ключей.
-
-### 1.1 SMTP (smtp.bz, домен spi-2015.ru)
-
-Коды входа отправляются через `smtp.bz` (SMTP-релей) от имени домена `spi-2015.ru`.
-Приложение не привязано к этому провайдеру — `backend/app/services/mail.py` шлёт
-письма через стандартный `aiosmtplib` (`STARTTLS`) по значениям из `.env`, так что
-провайдера можно сменить, просто поменяв `SMTP_*`. Если `SMTP_HOST` пуст — код входа
-просто пишется в лог сервера (`[DEV] Login code for ...`), реальные письма не уходят;
-это нормальный режим для локальной разработки.
-
-Для демо/прод-деплоя:
-1. Зайти в личный кабинет smtp.bz → раздел SMTP-авторизации, взять `SMTP_USER`/
-   `SMTP_PASSWORD` (логин и пароль именно для SMTP, не пароль от кабинета).
-   `SMTP_HOST=smtp.bz`, `SMTP_PORT=587` — значения из шаблона `.env.example` уже
-   подставлены, менять не нужно, если в кабинете не указано иное.
-2. Домен-отправитель `spi-2015.ru` должен быть подтверждён в кабинете smtp.bz
-   (обычно — добавление SPF/DKIM TXT-записей в DNS домена), иначе письма будут
-   уходить в спам или отклоняться принимающими серверами. Это разовая настройка на
-   стороне DNS `spi-2015.ru`, вне репозитория.
-3. `MAIL_FROM` — любой адрес на подтверждённом домене, например
-   `noreply@spi-2015.ru`; должен совпадать с доменом, подтверждённым в шаге 2.
-4. Проверить: `POST /api/v1/auth/request-code` с реальным e-mail — письмо должно
-   дойти за несколько секунд. Если нет — проверить `SMTP_USER`/`SMTP_PASSWORD` и
-   статус подтверждения домена в кабинете smtp.bz, а не код приложения (это первое,
-   что стоит перепроверить при жалобах «код не пришёл» после деплоя).
+1. Сгенерировать пару локально: `npx web-push generate-vapid-keys` (ничего в проект
+   ставить не нужно, `npx` скачает временно).
+2. Вставить вывод в `.env`: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+   `VAPID_SUBJECT=mailto:admin@spi-2015.ru`.
+3. Фронту отдельная переменная не нужна — он получает публичный ключ в рантайме через
+   `GET /api/v1/push/vapid-public-key`.
+4. Если ключи пусты — приложение работает как обычно, просто push никому не уходит
+   (безопасный дефолт для промежуточных проверок).
 
 ---
 
@@ -92,184 +98,226 @@ VAPID public key фронтенд не хранит в `.env` — получае
 ```bash
 git clone <REPO_URL> && cd spi-messenger
 
-# БД + Redis + MinIO одним махом
-docker compose -f docker-compose.dev.yml up -d   # postgres:16, redis, minio
+# Только инфраструктура (Postgres + Redis + MinIO) в Docker:
+docker compose -f docker-compose.dev.yml up -d
 
-# Backend
+# Backend (на хосте, с автоперезагрузкой)
 cd backend
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp ../.env.example ../.env                          # заполнить значения
-alembic upgrade head                                # создать таблицы
+python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+cp ../.env.example ../.env                              # DATABASE_URL=...localhost:5432..., APP_ENV=dev
+alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 
 # Frontend (второй терминал)
 cd frontend
 npm install
-npm run dev                                         # http://localhost:5173
+cp .env.example .env                                   # VITE_API_URL/VITE_WS_URL = localhost
+npm run dev                                             # http://localhost:5173
 ```
 
-Проверка с телефона в локальной сети: `npm run dev -- --host`, открыть `http://<IP-компьютера>:5173` (push и PWA-установка потребуют HTTPS — использовать `npm run dev:https` с mkcert-сертификатом или демо-деплой).
+Для `.env` (корень) локально: `DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/spi_messenger`,
+`APP_ENV=dev`. Push/PWA требуют HTTPS — проверяются на демо-деплое (§3), не на `localhost`.
 
 ---
 
-## 3. Демо-деплой (Vercel + Render + Supabase)
+## 3. Тестовый (демо) деплой на VPS в РФ — пошагово
 
-### Почему не «только Vercel + Supabase»
+Итог этого раздела: рабочий `https://demo.spi-2015.ru`, где заказчики **без вашего
+участия 1-3 дня** проверяют весь функционал (чаты, группы, каналы, звонки, секретные
+чаты, push, PWA). Провайдер — **Timeweb Cloud** (РФ, ~200-300 ₽/мес, принимает карты
+РФ). Архитектура провайдеро-независима — подойдёт любой Ubuntu-VPS (альтернативы в
+конце раздела).
 
-Заказчик изначально просил ограничиться Vercel + Supabase без Neon — это сделано
-(ADR-013: БД, а в перспективе и файловое хранилище, на Supabase). Но полностью убрать
-Render нельзя без переписывания real-time слоя приложения:
+Порядок важен: **сначала DNS (§3.2), т.к. записи распространяются не мгновенно, а Caddy
+не выпустит HTTPS, пока домен не резолвится в IP сервера.**
 
-- Бэкенд (`backend/`, FastAPI) держит **одно постоянное WebSocket-соединение на
-  клиента** (`/ws`, см. `docs/02-ARCHITECTURE.md` §1 и `backend/app/ws/`) — через него
-  идут новые сообщения, статусы прочтения, typing-индикатор, presence (онлайн/оффлайн),
-  события чатов. Соединение живёт в памяти процесса (`ConnectionManager`), пока клиент
-  не отключится.
-- Vercel Serverless/Edge Functions (включая Python-рантайм) устроены иначе: функция
-  поднимается на входящий запрос и завершается, отдав ответ — она физически не может
-  держать сокет открытым между запросами. WebSocket на Vercel для такого бэкенда
-  не работает — соединение будет обрываться сразу или почти сразу.
-- Поэтому FastAPI+WS разворачивается на Render (обычный долгоживущий процесс/контейнер,
-  а не serverless-функция), подключаясь к тому же Supabase Postgres, что и всё
-  остальное. Vercel в этой схеме отвечает только за статику фронтенда.
+### 3.1. Создать сервер на Timeweb Cloud
 
-Итоговое разделение ответственности: **Vercel** — только фронтенд (статика +
-`frontend/vercel.json` SPA-рероутинг), **Render** — FastAPI + WebSocket API, **Supabase**
-— Postgres (и в будущем Storage). Смена Render на другой хостинг с тем же свойством
-«держит долгоживущий процесс» (VPS, Fly.io, Railway) возможна — это не привязка к
-конкретному вендору, а требование к типу хостинга; `render.yaml` в этом случае просто
-не используется, а `backend/Dockerfile` подходит для любого Docker-хостинга без правок.
+1. https://timeweb.cloud → зарегистрироваться, пополнить баланс (~300 ₽ хватит на месяц).
+2. **Cloud-серверы** → **Создать** →
+   - ОС: **Ubuntu 24.04**;
+   - Конфигурация: минимальная из «стандартных» — **1-2 vCPU, 2 ГБ RAM, 20-30 ГБ NVMe**
+     (этого достаточно для демо; звонки идут P2P между браузерами, сервер их не
+     обрабатывает);
+   - Регион: РФ (Москва/СПб);
+   - Аутентификация: загрузить свой **SSH-ключ** (рекомендуется) либо root-пароль
+     (Timeweb пришлёт).
+3. Создать. Записать **публичный IP** сервера.
+4. Проверить вход: `ssh root@<IP>`.
 
-> В репозитории уже есть `render.yaml` (Render Blueprint) и `frontend/vercel.json`
-> (SPA-рероутинг для client-side маршрутов React Router), которые сводят ручную часть
-> ниже к вводу нескольких значений в веб-интерфейсах — сами аккаунты
-> Vercel/Render/Supabase и клики в их дашбордах должен сделать владелец проекта.
+> Порты 80/443 на Timeweb Cloud по умолчанию открыты. Если включён отдельный firewall
+> (сетевой экран) — разрешить входящие TCP **22, 80, 443**.
 
-Порядок (важно соблюдать — DATABASE_URL для Render появляется только после шага 1,
-а CORS_ORIGINS/FRONTEND_URL для Render — только после шага 3):
+### 3.2. DNS: A-запись `demo.spi-2015.ru → IP`
 
-### 3.1 Supabase (БД) — сделать первым
-1. https://supabase.com → **New project** (регион — ближе к будущему Render-сервису,
-   например Frankfurt/EU). Задать и сохранить пароль БД.
-2. Settings → Database → **Connection string** (URI, режим **Session**, порт 5432 —
-   для приложения с длинными соединениями; для serverless-клиентов Supabase
-   рекомендует pooler-порт 6543/transaction, но нашему постоянно работающему API
-   на Render нужен обычный session-режим).
-3. Заменить префикс `postgresql://` на `postgresql+asyncpg://` — это будущий
-   `DATABASE_URL` для Render (шаг 3.2).
-4. (Опционально, на будущее) Settings → API → скопировать `SUPABASE_URL` и
-   `service_role key` (→ `SUPABASE_SERVICE_KEY`, только в бэкенд!) — понадобятся,
-   когда будет реализован `STORAGE_BACKEND=supabase` (см. врезку в конце 3.2).
+В панели управления DNS домена `spi-2015.ru` (там же, где настраивали SMTP) добавить:
 
-### 3.2 Render (FastAPI + WebSocket) — Blueprint из render.yaml
-1. https://render.com → New → **Blueprint** → подключить репозиторий `xghostyyy/spi`.
-   Render найдёт `render.yaml` в корне и предложит создать сервис `spi-api`
-   (Docker, `backend/Dockerfile`, `JWT_SECRET` сгенерируется автоматически).
-2. Перед первым деплоем в Environment добавить вручную (помечены `sync: false` в
-   `render.yaml`, Render запросит их при создании из Blueprint):
-   - `DATABASE_URL` — строка из шага 3.1.
-   - `CORS_ORIGINS`, `FRONTEND_URL` — временно `http://localhost:5173`, обновить после шага 3.3.
-   - `SMTP_HOST=smtp.bz`, `SMTP_USER`/`SMTP_PASSWORD` — из кабинета smtp.bz (см. §1.1);
-     `MAIL_FROM=noreply@spi-2015.ru`. Можно оставить пустыми — тогда код входа просто
-     печатается в лог сервиса (Render → Logs), реальные письма не отправляются
-     (нормально для быстрой проверки, не годится для показа заказчику).
-   - `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` — сгенерировать `npx web-push generate-vapid-keys`
-     (см. §3.5); пустые значения тоже допустимы — push тогда тихо не отправляется
-     (`app/services/push.py` делает ранний `return`), остальное приложение не ломается.
-   - `TENOR_API_KEY` — необязательно (см. ADR-019); пусто = вкладка поиска GIF скрыта
-     на фронте, `GET /gifs/search` отдаёт пустой список вместо ошибки.
-   - `REDIS_URL` — оставить пустым (не обязателен при одном инстансе, см. `docs/02-ARCHITECTURE.md` §4.2).
-     Это же ограничение теперь касается и отложенной отправки сообщений (ADR-018) —
-     доставка крутится в процессе API одним циклом; на Render **не включать
-     несколько инстансов/автоскейлинг** для сервиса `spi-api`, иначе отложенные
-     сообщения могут задвоиться.
-3. После первого деплоя выполнить миграции: Render → сервис `spi-api` → Shell →
-   `alembic upgrade head`.
-3.1. (Опционально, для показа заказчику) Наполнить демо-данными — `db/seed.sql`
-   (5 вымышленных пользователей, личные и групповой чаты, опрос, закреп; см. комментарий
-   в начале файла — под эти аккаунты нельзя войти по e-mail-коду, они только для вида).
-   Скрипт идемпотентен (`ON CONFLICT ... DO NOTHING` везде), безопасно запускать повторно.
-   Выполнить через Supabase SQL Editor (вставить содержимое файла и запустить) — Render
-   Shell для этого не нужен, `psql` в контейнере может не быть.
-4. Скопировать URL сервиса, например `https://spi-api.onrender.com`.
+| Тип | Имя (host) | Значение | TTL |
+|---|---|---|---|
+| `A` | `demo` | `<IP сервера>` | 300 (5 мин) |
 
-> Free-план Render засыпает после 15 минут простоя (первый запрос ~30 сек). Для показа
-> клиенту — разбудить заранее или взять Starter-план. Free-план не даёт постоянный диск:
-> `STORAGE_BACKEND=local` (аватары) не переживёт редеплой/рестарт — ожидаемо для тестового
-> деплоя. `STORAGE_BACKEND=supabase` в `backend/app/services/storage.py` пока заглушка
-> (`NotImplementedError`) — реализация Supabase Storage (buckets `avatars`/`media`,
-> `SUPABASE_URL`+`SUPABASE_SERVICE_KEY` из шага 3.1.4) остаётся отдельной задачей.
+Проверить распространение (может занять от минут до часа):
+```bash
+ping demo.spi-2015.ru        # должен отвечать ваш IP
+# или: nslookup demo.spi-2015.ru
+```
+**Не переходить к §3.5 (`up`), пока `demo.spi-2015.ru` не резолвится в нужный IP** —
+иначе Let's Encrypt не подтвердит домен и Caddy не получит сертификат.
 
-### 3.3 Vercel — фронтенд и финальный CORS
-1. https://vercel.com → Add New Project → репозиторий `xghostyyy/spi`, Root Directory
-   `frontend` (Vercel подхватит `frontend/vercel.json` автоматически, Framework — Vite,
-   Build/Output определятся сами).
-2. Settings → Environment Variables: `VITE_API_URL=https://spi-api.onrender.com`,
-   `VITE_WS_URL=wss://spi-api.onrender.com/ws`.
-3. Deploy → получить домен, например `https://spi-messenger.vercel.app`.
-4. Вернуться в Render (шаг 3.2) и обновить `CORS_ORIGINS` и `FRONTEND_URL` на этот домен.
+### 3.3. Установить Docker на сервере
 
-### 3.4 Проверка на iPhone
-1. Открыть URL в Safari → Поделиться → **«На экран "Домой"»**.
-2. Запустить с домашнего экрана (standalone-режим).
-3. В настройках приложения включить уведомления → разрешить push.
-4. Отправить сообщение со второго устройства → push должен прийти при закрытом приложении.
+По SSH на сервере:
+```bash
+apt update && apt install -y docker.io docker-compose-plugin git
+systemctl enable --now docker
+docker compose version        # проверка, что плагин compose доступен
+```
 
-### 3.5 Web Push (VAPID-ключи)
-1. Сгенерировать пару ключей локально: `npx web-push generate-vapid-keys` (пакет
-   `web-push`, ничего устанавливать в проект не нужно — `npx` скачает временно).
-2. В Render (сервис `spi-api`, шаг 3.2) добавить `VAPID_PUBLIC_KEY` и
-   `VAPID_PRIVATE_KEY` из вывода команды, `VAPID_SUBJECT=mailto:admin@spi-2015.ru`
-   (email или URL — по спецификации VAPID; используется провайдерами push-сервисов
-   для связи с владельцем в случае проблем, не показывается пользователю).
-3. На Vercel ничего добавлять не нужно — фронтенд получает публичный ключ через
-   `GET /api/v1/push/vapid-public-key` (см. §1), а не через свою переменную окружения.
-4. Если ключи не заданы — `POST .../messages` продолжает работать как обычно, просто
-   push никому не уходит (`app/services/push.py::send_push_to_user` возвращает
-   раньше срока при пустом `VAPID_PRIVATE_KEY`); это безопасный дефолт для
-   промежуточных проверок деплоя без push.
+### 3.4. Склонировать репозиторий и заполнить `.env`
+
+```bash
+git clone <REPO_URL> /opt/spi && cd /opt/spi
+cp .env.example .env
+nano .env
+```
+Заполнить как минимум:
+```env
+DOMAIN=demo.spi-2015.ru
+ACME_EMAIL=admin@spi-2015.ru
+APP_ENV=prod
+POSTGRES_PASSWORD=<openssl rand -hex 16>
+DATABASE_URL=                       # оставить ПУСТЫМ (api возьмёт postgres из compose)
+JWT_SECRET=<openssl rand -hex 32>
+CORS_ORIGINS=https://demo.spi-2015.ru
+FRONTEND_URL=https://demo.spi-2015.ru
+# SMTP (из кабинета smtp.bz, см. §1.1):
+SMTP_HOST=smtp.bz
+SMTP_PORT=587
+SMTP_USER=<...>
+SMTP_PASSWORD=<...>
+MAIL_FROM=noreply@spi-2015.ru
+# Web Push (npx web-push generate-vapid-keys, см. §1.2):
+VAPID_PUBLIC_KEY=<...>
+VAPID_PRIVATE_KEY=<...>
+VAPID_SUBJECT=mailto:admin@spi-2015.ru
+```
+Значения `openssl rand ...` можно сгенерировать прямо на сервере: `openssl rand -hex 32`.
+
+### 3.5. Запустить стек
+
+```bash
+docker compose up -d --build
+```
+Что произойдёт автоматически:
+- соберётся образ фронта (`frontend/Dockerfile`) и его `dist` попадёт в том, который
+  отдаёт Caddy;
+- поднимется Postgres, затем `api` накатит миграции (`alembic upgrade head`) и
+  запустит FastAPI + WebSocket (**строго 1 воркер** — так требует in-process
+  архитектура, см. ADR-023);
+- Caddy получит HTTPS-сертификат Let's Encrypt для `demo.spi-2015.ru` (первый запрос
+  может занять 10-30 сек, пока идёт выпуск).
+
+Проверить:
+```bash
+docker compose ps                       # все сервисы healthy/running; frontend-build — Exited (0), это норма
+docker compose logs -f caddy            # строки про выданный сертификат
+docker compose logs -f api              # 'Application startup complete'
+curl https://demo.spi-2015.ru/healthz   # {"status":"ok",...}
+```
+Открыть в браузере `https://demo.spi-2015.ru` — должно работать по HTTPS.
+
+### 3.6. (Опционально) наполнить демо-данными
+
+`db/seed.sql` создаёт 5 вымышленных пользователей, личные и групповой чаты, опрос,
+закреп (под эти аккаунты нельзя войти по коду — они только для наглядности). Скрипт
+идемпотентен, безопасно запускать повторно:
+```bash
+docker compose exec -T postgres psql -U postgres -d spi_messenger < db/seed.sql
+```
+
+### 3.7. Финальная проверка функционала
+
+1. Зарегистрироваться по реальному e-mail (код придёт письмом; если письма нет —
+   `docker compose logs api | grep -i code`, при пустом SMTP код печатается в лог).
+2. Со второго устройства/браузера — второй аккаунт; проверить личный чат в реальном
+   времени (доставка, typing, ✓/✓✓, реакции, reply, edit/delete).
+3. Группа, канал (пост может только владелец/админ), секретный чат (шифрование),
+   отложенное сообщение, папки, стикеры/GIF.
+4. Звонок (нужны два устройства с разрешённым микрофоном/камерой; звонки идут
+   напрямую между браузерами через STUN — за строгим NAT без TURN могут не соединиться,
+   это ожидаемое ограничение, см. ADR-020).
+5. **PWA + Push (iPhone):** Safari → Поделиться → «На экран „Домой“» → запустить с
+   домашнего экрана → включить уведомления → отправить сообщение со второго устройства
+   при закрытом приложении → push должен прийти.
+
+### 3.8. Оставить заказчику на 1-3 дня без присмотра
+
+- Стек самоподдерживающийся: у всех сервисов `restart: unless-stopped` — переживут
+  перезагрузку сервера и падения контейнеров.
+- Данные (БД) и загруженные файлы — на постоянных томах (`pg_data`, `uploads`),
+  редеплой/рестарт их не теряет.
+- Логи при жалобах: `docker compose logs --tail=200 api` (или `caddy`).
+- Сертификат Caddy продлевает сам. SMTP/VAPID заданы — письма и push работают без вас.
+- Стоимость: сервер тарифицируется, пока существует; после демо удалить сервер в
+  панели Timeweb, чтобы не платить.
+
+### Альтернативы Timeweb (тот же стек, другой Ubuntu-VPS)
+
+- **Yandex Cloud** (Compute Cloud) — РФ, есть стартовый грант; больше настройки в
+  консоли (биллинг-аккаунт, сеть, публичный IP). Дальше — те же §3.3-3.8.
+- **Beget** (облачный VPS) — РФ, дёшево и просто, аналогично Timeweb.
+- Любой другой Ubuntu 22.04+/24.04 VPS: шаги §3.3-3.8 идентичны, меняется только
+  провайдер и способ добавления DNS-записи.
 
 ---
 
-## 4. Продакшен на VPS (PostgreSQL)
+## 4. Продакшен на собственном VPS
 
-Требования: Ubuntu 22.04+, Docker + Docker Compose, домен, указывающий на VPS.
+Тот же стек, что и демо (§3) — отличается только машиной, доменом и обязательными
+бэкапами. Требования: Ubuntu 22.04+, домен заказчика, указывающий на IP VPS.
 
-### 4.1 Подключение БД
+### 4.1. Развернуть
+Повторить §3.3-3.5 на прод-VPS со своим `DOMAIN` (напр. `spi.<домен-заказчика>`) и
+свежими секретами (`JWT_SECRET`, `POSTGRES_PASSWORD` — **не переиспользовать демо-**).
+
+### 4.2. Перенос данных с демо (если нужно сохранить переписку демо)
 ```bash
-# На VPS
-git clone <REPO_URL> /opt/spi-messenger && cd /opt/spi-messenger
-cp .env.example .env && nano .env
-#   DATABASE_URL=postgresql+asyncpg://spi_app:<пароль>@postgres:5432/spi_messenger
-#   STORAGE_BACKEND=local (или s3/minio)
+# на демо-сервере:
+docker compose exec -T postgres pg_dump -U postgres -Fc spi_messenger > demo.dump
+docker compose cp api:/data/uploads ./uploads-demo     # файлы
+# перенести demo.dump и uploads-demo на прод (scp), затем на проде:
+docker compose exec -T postgres pg_restore -U postgres -d spi_messenger --clean demo.dump
+docker compose cp ./uploads-demo/. api:/data/uploads/
+```
+Чаще для прода начинают с чистой БД — тогда этот шаг пропускается.
 
-docker compose up -d postgres
-# Создание БД, пользователя и таблиц:
-docker compose exec -T postgres psql -U postgres -f - < db/schema.sql
-# (или через миграции: docker compose run --rm api alembic upgrade head)
+### 4.3. Бэкапы (обязательно для прода)
+БД и файлы живут на диске VPS — настроить регулярный бэкап:
+```bash
+# /etc/cron.daily/spi-backup  (chmod +x), пример:
+#!/bin/sh
+cd /opt/spi
+docker compose exec -T postgres pg_dump -U postgres -Fc spi_messenger > /var/backups/spi-$(date +%F).dump
+tar czf /var/backups/spi-uploads-$(date +%F).tgz -C /var/lib/docker/volumes/spi-messenger_uploads/_data .
+find /var/backups -name 'spi-*' -mtime +14 -delete
+```
+Копии периодически выгружать за пределы VPS (S3-совместимое хранилище / другой сервер).
 
-# Демо-данные (опционально):
-docker compose exec -T postgres psql -U postgres -d spi_messenger -f - < db/seed.sql
+### 4.4. Обновление версии
+```bash
+cd /opt/spi
+git pull
+docker compose up -d --build      # пересборка образов; api сам накатит новые миграции
+docker compose logs -f api        # проверить, что миграции прошли и старт успешен
 ```
 
-### 4.2 Запуск всего стека
-```bash
-docker compose up -d        # nginx + api + postgres + redis (+ minio)
-```
-
-`docker-compose.yml` включает: `nginx` (статика фронта + reverse proxy + WSS), `api` (FastAPI, 2 воркера), `postgres:16` (том `pg_data`), `redis`, `certbot` (авто-HTTPS). Фронт собирается в билд-стадии и кладётся в том nginx.
-
-### 4.3 Перенос данных с демо на VPS
-Диалект одинаковый, поэтому перенос тривиален:
-1. `pg_dump "postgresql://postgres:PASSWORD@db.xxxx.supabase.co:5432/postgres" -Fc -f demo.dump`
-2. `pg_restore -U postgres -d spi_messenger demo.dump`
-3. Файлы Storage → скачать через `scripts/migrate_storage.py` в локальный том/MinIO.
-
-### 4.4 Обслуживание
-- Бэкапы: cron `pg_dump -Fc` ежедневно + копия тома uploads (пример в `scripts/backup.sh`).
-- Обновление: `git pull && docker compose build && docker compose up -d && docker compose run --rm api alembic upgrade head`.
-- Логи: `docker compose logs -f api`.
+### 4.5. (Опционально) вынести Postgres в managed-БД
+Код к этому готов: задать внешний `DATABASE_URL` в `.env` (напр. Yandex Managed
+PostgreSQL) — `api` подключится к нему, сервис `postgres` из compose можно не
+запускать (`docker compose up -d --scale postgres=0` или убрать из override).
+Так БД получает бэкапы и обслуживание на стороне провайдера. Для одного узла это
+избыточно; актуально при росте.
 
 ---
 
@@ -277,10 +325,15 @@ docker compose up -d        # nginx + api + postgres + redis (+ minio)
 
 | Симптом | Причина / решение |
 |---|---|
-| Push не приходит на iPhone | PWA не установлена на домашний экран, iOS < 16.4, или подписка запрошена не по жесту пользователя |
-| Push не приходит вообще (не только iPhone) | `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` пусты на Render (см. §3.5) — отправка молча пропускается |
-| Код входа на e-mail не приходит | Проверить `SMTP_USER`/`SMTP_PASSWORD` и статус подтверждения домена `spi-2015.ru` в кабинете smtp.bz (см. §1.1), не код приложения; если `SMTP_HOST` пуст — код печатается только в лог Render |
-| WS постоянно отваливается на Render | Free-план уснул; включить keep-alive ping или платный план |
-| `Access-Control-Allow-Origin` ошибки | Домен фронта не добавлен в `CORS_ORIGINS` |
-| `Too many connections` Postgres | Уменьшить pool_size SQLAlchemy; на Supabase — подключаться через пулер (порт 6543, режим transaction) |
-| iOS: контент под чёлкой | Проверить `viewport-fit=cover` и `env(safe-area-inset-*)` |
+| Caddy не выдаёт HTTPS, в логах `caddy` ошибки ACME | `DOMAIN` ещё не резолвится в IP сервера (§3.2) или закрыт порт 80/443. Дождаться DNS, открыть порты, `docker compose restart caddy` |
+| `502 Bad Gateway` на `/api/*` | `api` ещё стартует/упал. `docker compose logs api` — частая причина: не задан `JWT_SECRET` при `APP_ENV=prod` (падает на старте) |
+| `api` перезапускается по кругу | Проверить `DATABASE_URL` (для compose — **пустой**, тогда берётся postgres из стека) и что `POSTGRES_PASSWORD` задан; смотреть `docker compose logs api` |
+| Сообщения/typing/presence не в реальном времени | Убедиться, что `api` в **один воркер** (так в `backend/Dockerfile`); WSS проходит через Caddy на `/ws`; в браузере DevTools → Network → WS должен быть `101 Switching Protocols` |
+| Отложенные сообщения приходят дважды | Запущено >1 инстанса/воркера api — нарушение архитектуры (ADR-018/023). Держать строго 1 воркер, не масштабировать api без Redis Pub/Sub |
+| Загруженные файлы/аватары пропали после рестарта | Проверить, что том `uploads` смонтирован (в новом стеке — да) и `STORAGE_BACKEND=local`, `STORAGE_LOCAL_PATH=/data/uploads` |
+| Код входа на e-mail не приходит | `SMTP_USER/PASSWORD` из кабинета smtp.bz и статус домена `spi-2015.ru` (SPF/DKIM), см. §1.1; при пустом `SMTP_HOST` код только в логе `api` |
+| Push не приходит вообще | Пусты `VAPID_PUBLIC_KEY/PRIVATE_KEY` — отправка тихо пропускается (§1.2) |
+| Push не приходит на iPhone | PWA не установлена на домашний экран, iOS < 16.4, либо подписка запрошена не по жесту пользователя. Только через HTTPS |
+| Звонок не соединяется у части пользователей | Строгий/симметричный NAT без TURN — известное ограничение (только публичный STUN, ADR-020) |
+| Оплата/доступ к зарубежному сервису из РФ | Использовать РФ-провайдера (Timeweb/Yandex/Beget) — на них весь стек ставится одинаково |
+| iOS: контент под «чёлкой» | `viewport-fit=cover` + `env(safe-area-inset-*)` (уже в вёрстке) |

@@ -1,0 +1,43 @@
+# Caddy — единая точка входа стека (см. docs/03-SETUP-DEPLOY.md, ADR-023).
+# Один origin: статика фронтенда + reverse-proxy на FastAPI (api:8000), включая
+# WebSocket (/ws). Домен и e-mail для Let's Encrypt берутся из .env (DOMAIN,
+# ACME_EMAIL) — Caddy сам получает и продлевает HTTPS-сертификат.
+#
+# Без домена (локально) можно поднять по HTTP: DOMAIN=:80 — тогда HTTPS не выпускается.
+
+{
+	# E-mail для уведомлений Let's Encrypt о скором истечении. Пусто — допустимо.
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# --- API / WebSocket / медиа / служебное → FastAPI (api:8000) ---
+	# reverse_proxy сам проксирует заголовки Upgrade/Connection для WebSocket.
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle /ws {
+		reverse_proxy api:8000
+	}
+	handle /media/* {
+		reverse_proxy api:8000
+	}
+	handle /healthz {
+		reverse_proxy api:8000
+	}
+	handle /docs {
+		reverse_proxy api:8000
+	}
+	handle /openapi.json {
+		reverse_proxy api:8000
+	}
+
+	# --- Всё остальное → статика собранного фронта (SPA-fallback на index.html) ---
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+}
