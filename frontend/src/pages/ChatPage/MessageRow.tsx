@@ -35,7 +35,7 @@ interface MessageRowProps {
   onReply: () => void;
   onQuoteClick: () => void;
   onToggleHeart: () => void;
-  onEdit: (body: string) => void;
+  onEdit?: (body: string) => void;
   onDelete: (scope: 'self' | 'all') => void;
   onImageClick: (url: string) => void;
   onToggleBookmark: () => void;
@@ -212,7 +212,7 @@ export function MessageRow({
             size="md"
             type="button"
             onClick={() => {
-              if (draft.trim()) onEdit(draft.trim());
+              if (draft.trim()) onEdit?.(draft.trim());
               setEditing(false);
             }}
           >
@@ -268,7 +268,7 @@ export function MessageRow({
             <PinIcon size={16} />
           </button>
         ) : null}
-        {isOwn && !message.deletedForAll ? (
+        {isOwn && !message.deletedForAll && onEdit ? (
           <button
             type="button"
             className={styles.actionIcon}

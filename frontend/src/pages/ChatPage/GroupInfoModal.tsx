@@ -176,7 +176,7 @@ export function GroupInfoModal({
           </div>
 
           <div className={styles.groupInfoSectionTitle}>
-            {t('group.info.members')} — {members.length}
+            {t('group.info.members')} — {chat.memberCount ?? members.length}
           </div>
 
           {canInvite ? (

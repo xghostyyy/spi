@@ -605,8 +605,11 @@ export function ChatPage() {
                   onToggleHeart={() =>
                     reactionMutation.mutate({ messagePublicId: message.messagePublicId })
                   }
-                  onEdit={(body) =>
-                    editMutation.mutate({ messagePublicId: message.messagePublicId, body })
+                  onEdit={
+                    chat?.isSecret || message.type !== 'text'
+                      ? undefined
+                      : (body) =>
+                          editMutation.mutate({ messagePublicId: message.messagePublicId, body })
                   }
                   onDelete={(scope) =>
                     deleteMutation.mutate({ messagePublicId: message.messagePublicId, scope })

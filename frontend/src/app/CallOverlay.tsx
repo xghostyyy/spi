@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { callManager } from '../shared/calls/CallManager';
-import { useCallStore } from '../shared/calls/callStore';
+import { setCallState, useCallStore } from '../shared/calls/callStore';
 import { useT } from '../shared/i18n';
 import { Avatar } from '../shared/ui/Avatar';
 import { IconButton } from '../shared/ui/IconButton';
@@ -57,7 +57,22 @@ export function CallOverlay() {
   const t = useT();
   const call = useCallStore();
 
-  if (call.phase === 'idle') return null;
+  if (call.phase === 'idle') {
+    // Ошибка getUserMedia (нет доступа к микрофону/камере) приходит уже после
+    // отката в idle — показываем её отдельным тостом, иначе она молча теряется.
+    if (call.errorKey) {
+      return (
+        <button
+          type="button"
+          className={styles.errorToast}
+          onClick={() => setCallState({ errorKey: null })}
+        >
+          {t('call.error.mediaDenied')}
+        </button>
+      );
+    }
+    return null;
+  }
 
   const isVideo = call.kind === 'video';
 

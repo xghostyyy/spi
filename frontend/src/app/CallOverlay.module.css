@@ -1,3 +1,19 @@
+.errorToast {
+  position: fixed;
+  bottom: calc(var(--space-6) + var(--safe-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-modal);
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger, #e05d7b);
+  color: #fff;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
 .overlay {
   position: fixed;
   inset: 0;
