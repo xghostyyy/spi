@@ -14,8 +14,19 @@
   background: var(--color-bg-secondary);
 }
 
+/* Аватар/кнопки не сжимаются и не обрезаются; ужимается только поле поиска. */
+.header > * {
+  flex-shrink: 0;
+}
+
+.profileLink {
+  display: flex;
+  border-radius: 50%;
+}
+
 .searchInput {
   flex: 1;
+  min-width: 0;
 }
 
 .empty {

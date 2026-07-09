@@ -23,7 +23,7 @@ CREATE TYPE chat_type       AS ENUM ('direct','group','saved');
 CREATE TYPE member_role     AS ENUM ('owner','admin','member');
 CREATE TYPE message_type    AS ENUM ('text','photo','video','audio','voice','document',
                                      'contact','location','album','poll','system',
-                                     'sticker','gif','call');
+                                     'sticker','gif','call','video_note');
 
 -- Автообновление updated_at
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$

@@ -44,25 +44,22 @@ import type { StickerDef } from '../../shared/stickers/catalog';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Button } from '../../shared/ui/Button';
 import { IconButton } from '../../shared/ui/IconButton';
-import { Input } from '../../shared/ui/Input';
 import {
   BackIcon,
   ClockIcon,
   CloseIcon,
-  ContactIcon,
   LinkIcon,
-  LocationIcon,
   LockIcon,
   MegaphoneIcon,
   MicIcon,
-  PaperclipIcon,
   PhoneIcon,
-  PollIcon,
+  PlusIcon,
   SendIcon,
-  StickerIcon,
   TrashIcon,
   VideoIcon,
 } from '../../shared/ui/icons';
+import { AttachMenu } from './AttachMenu';
+import { VideoNoteRecorder } from './VideoNoteRecorder';
 import { wsClient } from '../../shared/ws/client';
 import { useTypingStore } from '../../shared/ws/typingStore';
 import { MessageRow } from './MessageRow';
@@ -139,10 +136,13 @@ export function ChatPage() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showVideoNote, setShowVideoNote] = useState(false);
   const typingActiveRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const voiceRecorder = useVoiceRecorder();
 
   const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
@@ -271,6 +271,7 @@ export function ChatPage() {
       kind: FileKind;
       durationMs?: number;
       waveform?: number[];
+      isVideoNote?: boolean;
     }) => {
       const uploaded = await uploadFile(input.file, input.kind, {
         durationMs: input.durationMs,
@@ -280,6 +281,7 @@ export function ChatPage() {
         clientMsgId: crypto.randomUUID(),
         filePublicIds: [uploaded.publicId],
         replyToPublicId: replyTo?.messagePublicId,
+        isVideoNote: input.isVideoNote,
       });
     },
     onMutate: () => setUploading(true),
@@ -420,6 +422,7 @@ export function ChatPage() {
 
   function handleDraftChange(value: string) {
     setDraft(value);
+    autoGrowTextarea();
     if (!chatId) return;
     if (value && !typingActiveRef.current) {
       typingActiveRef.current = true;
@@ -432,11 +435,23 @@ export function ChatPage() {
     }, TYPING_IDLE_MS);
   }
 
+  function autoGrowTextarea() {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }
+
+  function resetTextareaHeight() {
+    if (textareaRef.current) textareaRef.current.style.height = '44px';
+  }
+
   function handleSend() {
     const body = draft.trim();
     if (!body || !chatId) return;
     sendMutation.mutate(body);
     setDraft('');
+    resetTextareaHeight();
     setReplyTo(null);
     typingActiveRef.current = false;
     wsClient.send('typing', { chat_id: chatId, kind: 'text', active: false });
@@ -447,6 +462,24 @@ export function ChatPage() {
     e.target.value = '';
     if (!file) return;
     sendMediaMutation.mutate({ file, kind: guessFileKind(file) });
+  }
+
+  /** Открывает единый file-input с нужным ограничением типа (Фото/Видео/Файл). */
+  function openFilePicker(accept: string) {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.accept = accept;
+    input.click();
+  }
+
+  function handleSendVideoNote(recording: { blob: Blob; durationMs: number }) {
+    setShowVideoNote(false);
+    sendMediaMutation.mutate({
+      file: recording.blob,
+      kind: 'video',
+      durationMs: recording.durationMs,
+      isVideoNote: true,
+    });
   }
 
   async function handleStopAndSendVoice() {
@@ -678,34 +711,34 @@ export function ChatPage() {
                     type="file"
                     hidden
                     onChange={handleFileSelected}
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar,.txt"
+                    accept="image/*"
                   />
                   <IconButton
-                    label={t('chat.attach')}
-                    onClick={() => fileInputRef.current?.click()}
+                    label={t('attach.menu')}
+                    onClick={() => setShowAttachMenu((v) => !v)}
                     disabled={uploading}
                   >
-                    <PaperclipIcon />
+                    <PlusIcon />
                   </IconButton>
-                  <IconButton label={t('common.location')} onClick={handleSendLocation}>
-                    <LocationIcon />
-                  </IconButton>
-                  <IconButton
-                    label={t('common.contact')}
-                    onClick={() => setShowContactPicker(true)}
-                  >
-                    <ContactIcon />
-                  </IconButton>
-                  <IconButton label={t('poll.create')} onClick={() => setShowPollCreator(true)}>
-                    <PollIcon />
-                  </IconButton>
-                  <IconButton label={t('sticker.tab')} onClick={() => setShowStickerPicker(true)}>
-                    <StickerIcon />
-                  </IconButton>
+                  {showAttachMenu ? (
+                    <AttachMenu
+                      onClose={() => setShowAttachMenu(false)}
+                      onPhoto={() => openFilePicker('image/*')}
+                      onVideo={() => openFilePicker('video/*')}
+                      onFile={() => openFilePicker('*/*')}
+                      onVideoNote={() => setShowVideoNote(true)}
+                      onLocation={handleSendLocation}
+                      onContact={() => setShowContactPicker(true)}
+                      onPoll={() => setShowPollCreator(true)}
+                      onSticker={() => setShowStickerPicker(true)}
+                    />
+                  ) : null}
                 </>
               ) : null}
-              <Input
-                className={styles.composerInput}
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                className={styles.composerTextarea}
                 placeholder={
                   chat?.isSecret ? t('secretChat.composerPlaceholder') : t('chat.placeholder')
                 }
@@ -757,6 +790,10 @@ export function ChatPage() {
             <CloseIcon />
           </IconButton>
         </div>
+      ) : null}
+
+      {showVideoNote ? (
+        <VideoNoteRecorder onSend={handleSendVideoNote} onCancel={() => setShowVideoNote(false)} />
       ) : null}
 
       {forwardingMessage ? (

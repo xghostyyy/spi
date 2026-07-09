@@ -222,6 +222,26 @@ export function PauseIcon({ size, className }: IconProps) {
   );
 }
 
+export function ImageIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8.5" cy="9" r="1.6" />
+      <path d="M21 16l-5-5-6 6-2-2-5 5" />
+    </svg>
+  );
+}
+
+/** Видеокружок («кружок») — камера, вписанная в круг. */
+export function VideoCircleIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.2v5.6l4.8-2.8-4.8-2.8z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function FileIcon({ size, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

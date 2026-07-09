@@ -33,6 +33,7 @@ export async function sendMessage(
     };
     encrypted?: { ciphertext: string; iv: string };
     scheduledAt?: string;
+    isVideoNote?: boolean;
   },
 ): Promise<Message> {
   const res = await apiFetch<MessageDto>(`/api/v1/chats/${chatPublicId}/messages`, {
@@ -78,6 +79,7 @@ export async function sendMessage(
         : null,
       encrypted: input.encrypted ?? null,
       scheduled_at: input.scheduledAt ?? null,
+      is_video_note: input.isVideoNote ?? false,
     },
   });
   return messageFromDto(res);

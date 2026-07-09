@@ -195,4 +195,25 @@ export const en: Record<TranslationKey, string> = {
   'channel.new': 'Channel',
   'channel.titlePlaceholder': 'Channel name',
   'channel.readOnlyNotice': 'Only the owner and admins can post in this channel',
+
+  'attach.menu': 'Attach',
+  'attach.photo': 'Photo',
+  'attach.video': 'Video',
+  'attach.file': 'File',
+  'attach.videoNote': 'Video circle',
+  'attach.location': 'Location',
+  'attach.contact': 'Contact',
+  'attach.poll': 'Poll',
+  'attach.sticker': 'Sticker / GIF',
+
+  'directory.title': 'People',
+  'directory.open': 'Employee directory',
+  'directory.search': 'Search by name or @username',
+  'directory.section': 'People',
+  'directory.empty': 'No one found',
+
+  'preview.videoNote': '⭕ Video circle',
+  'videoNote.record': 'Record video circle',
+  'videoNote.recording': 'Recording…',
+  'videoNote.hint': 'Press "Stop" to send the circle',
 };

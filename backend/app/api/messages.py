@@ -134,6 +134,7 @@ class SendMessageBody(BaseModel):
     call: CallPayload | None = None
     encrypted: EncryptedPayload | None = None
     scheduled_at: datetime | None = None
+    is_video_note: bool = False
 
 
 class PollVoteBody(BaseModel):
@@ -356,7 +357,13 @@ async def send_message(
             attachment_files = [by_public_id[fid] for fid in body.file_public_ids]
         attachments_to_link = [(f.id, i) for i, f in enumerate(attachment_files)]
 
-        if len(attachment_files) > 1:
+        if (
+            body.is_video_note
+            and len(attachment_files) == 1
+            and attachment_files[0].kind == FileKind.video
+        ):
+            message_type = MessageType.video_note
+        elif len(attachment_files) > 1:
             message_type = MessageType.album
         elif attachment_files:
             message_type = _FILE_KIND_TO_MESSAGE_TYPE[attachment_files[0].kind]

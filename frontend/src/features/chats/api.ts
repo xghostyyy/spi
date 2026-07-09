@@ -17,6 +17,15 @@ export async function createDirectChat(username: string): Promise<Chat> {
   return chatFromDto(res);
 }
 
+/** Открыть/создать личный чат с сотрудником из каталога по его public_id (ADR-025). */
+export async function createDirectChatByPublicId(peerPublicId: string): Promise<Chat> {
+  const res = await apiFetch<ChatDto>('/api/v1/chats', {
+    method: 'POST',
+    body: { peer_public_id: peerPublicId },
+  });
+  return chatFromDto(res);
+}
+
 export async function createSecretChat(username: string): Promise<Chat> {
   const res = await apiFetch<ChatDto>('/api/v1/chats/secret', {
     method: 'POST',

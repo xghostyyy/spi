@@ -7,11 +7,11 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
-from app.api.schemas import UserOut
+from app.api.schemas import DirectoryUserOut, UserOut
 from app.core.deps import get_current_user
 from app.db.models import File, FileKind, PrivacyLevel, ThemePref, User
 from app.db.session import get_db
@@ -22,7 +22,9 @@ from app.services.avatar import (
     InvalidImageError,
     process_avatar,
 )
+from app.services.chat import avatar_url_for
 from app.services.storage import get_storage
+from app.ws.manager import manager
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -115,6 +117,35 @@ async def set_e2ee_key(
     await db.refresh(user)
     avatar_file = await _load_avatar(db, user)
     return UserOut.from_model(user, avatar_file)
+
+
+@router.get("/directory", response_model=list[DirectoryUserOut])
+async def list_directory(
+    q: str = Query(default="", max_length=100),
+    limit: int = Query(default=50, ge=1, le=100),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DirectoryUserOut]:
+    """Открытый каталог сотрудников (ADR-025): поиск/просмотр всех пользователей,
+    кроме себя и удалённых. Пустой q — первые N по имени (просмотр каталога)."""
+    stmt = select(User).where(User.id != user.id, User.is_deleted.is_(False))
+    query = q.strip()
+    if query:
+        like = f"%{query.lstrip('@')}%"
+        stmt = stmt.where(or_(User.display_name.ilike(f"%{query}%"), User.username.ilike(like)))
+    stmt = stmt.order_by(User.display_name).limit(limit)
+
+    result = await db.execute(stmt)
+    return [
+        DirectoryUserOut(
+            public_id=u.public_id,
+            username=u.username,
+            display_name=u.display_name,
+            avatar_url=await avatar_url_for(db, u.avatar_file_id),
+            online=manager.is_online(u.id),
+        )
+        for u in result.scalars().all()
+    ]
 
 
 @router.get("/check-username")

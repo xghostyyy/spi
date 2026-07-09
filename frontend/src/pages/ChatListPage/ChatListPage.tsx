@@ -7,6 +7,7 @@ import type { Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
 import {
   createDirectChat,
+  createDirectChatByPublicId,
   createSecretChat,
   getSavedChat,
   listChats,
@@ -14,6 +15,7 @@ import {
 import { listFolders } from '../../features/folders/api';
 import { createChannel, createGroup } from '../../features/groups/api';
 import { search as searchApi } from '../../features/search/api';
+import { searchDirectory, type DirectoryUser } from '../../features/users/api';
 import { ApiError } from '../../shared/api/client';
 import { ensureIdentityKeyPair } from '../../shared/e2ee/e2ee';
 import { useT, type TranslationKey } from '../../shared/i18n';
@@ -47,6 +49,7 @@ const PREVIEW_KEY_BY_TYPE: Partial<Record<string, TranslationKey>> = {
   album: 'preview.album',
   sticker: 'preview.sticker',
   gif: 'preview.gif',
+  video_note: 'preview.videoNote',
 };
 
 function formatTime(iso: string): string {
@@ -173,6 +176,24 @@ function MessageResultRow({ message }: { message: Message }) {
   );
 }
 
+function PersonRow({ person, onSelect }: { person: DirectoryUser; onSelect: () => void }) {
+  return (
+    <button type="button" className={styles.row} onClick={onSelect}>
+      <Avatar name={person.displayName} src={person.avatarUrl} size={52} online={person.online} />
+      <div className={styles.rowBody}>
+        <div className={styles.rowTop}>
+          <span className={styles.rowTitle}>{person.displayName}</span>
+        </div>
+        {person.username ? (
+          <div className={styles.rowBottom}>
+            <span className={styles.rowPreview}>@{person.username}</span>
+          </div>
+        ) : null}
+      </div>
+    </button>
+  );
+}
+
 export function ChatListPage() {
   const t = useT();
   const navigate = useNavigate();
@@ -182,8 +203,10 @@ export function ChatListPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [creating, setCreating] = useState<
-    'none' | 'choose' | 'chat' | 'group' | 'secret' | 'channel'
+    'none' | 'choose' | 'chat' | 'group' | 'secret' | 'channel' | 'directory'
   >('none');
+  const [directorySearch, setDirectorySearch] = useState('');
+  const [debouncedDirectory, setDebouncedDirectory] = useState('');
   const [newChatUsername, setNewChatUsername] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [groupTitle, setGroupTitle] = useState('');
@@ -196,6 +219,14 @@ export function ChatListPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setDebouncedDirectory(directorySearch.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [directorySearch]);
+
   const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
   const foldersQuery = useQuery({ queryKey: ['folders'], queryFn: listFolders });
   const folders = foldersQuery.data ?? [];
@@ -205,6 +236,31 @@ export function ChatListPage() {
     queryKey: ['search', debouncedSearch],
     queryFn: () => searchApi(debouncedSearch),
     enabled: debouncedSearch.length >= SEARCH_MIN_LENGTH,
+  });
+
+  // Люди из открытого каталога сотрудников в результатах главного поиска (ADR-025).
+  const peopleQuery = useQuery({
+    queryKey: ['directory', debouncedSearch],
+    queryFn: () => searchDirectory(debouncedSearch),
+    enabled: debouncedSearch.length >= SEARCH_MIN_LENGTH,
+  });
+
+  // Просмотр всего каталога (режим «+ → Каталог сотрудников»).
+  const directoryBrowseQuery = useQuery({
+    queryKey: ['directory-browse', debouncedDirectory],
+    queryFn: () => searchDirectory(debouncedDirectory),
+    enabled: creating === 'directory',
+  });
+
+  const openDirectMutation = useMutation({
+    mutationFn: (peerPublicId: string) => createDirectChatByPublicId(peerPublicId),
+    onSuccess: (chat) => {
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      setCreating('none');
+      setSearch('');
+      setDirectorySearch('');
+      navigate(`/chat/${chat.chatPublicId}`);
+    },
   });
 
   const createChatMutation = useMutation({
@@ -280,7 +336,9 @@ export function ChatListPage() {
   return (
     <div className={styles.root}>
       <header className={styles.header}>
-        <Avatar name={user?.displayName ?? '?'} src={user?.avatarUrl} size={36} />
+        <Link to="/settings" className={styles.profileLink} aria-label={t('nav.settings')}>
+          <Avatar name={user?.displayName ?? '?'} src={user?.avatarUrl} size={36} />
+        </Link>
         <Input
           className={styles.searchInput}
           leadingIcon={<SearchIcon size={18} />}
@@ -331,6 +389,9 @@ export function ChatListPage() {
 
       {creating === 'choose' ? (
         <div className={styles.newChatChooser}>
+          <button type="button" onClick={() => setCreating('directory')}>
+            {t('directory.open')}
+          </button>
           <button type="button" onClick={() => setCreating('chat')}>
             {t('chatlist.newChat')}
           </button>
@@ -421,31 +482,77 @@ export function ChatListPage() {
         </form>
       ) : null}
 
-      <SavedMessagesRow />
-
-      {filteredChats.length === 0 ? (
-        <div className={styles.empty}>
-          <p className={styles.emptyTitle}>
-            {search.trim() ? t('chatlist.noResults') : t('chatlist.empty.title')}
-          </p>
-          {!search.trim() ? <p className={styles.emptyHint}>{t('chatlist.empty.hint')}</p> : null}
-        </div>
+      {creating === 'directory' ? (
+        <>
+          <div className={styles.newChatForm}>
+            <Input
+              autoFocus
+              leadingIcon={<SearchIcon size={18} />}
+              placeholder={t('directory.search')}
+              value={directorySearch}
+              onChange={(e) => setDirectorySearch(e.target.value)}
+            />
+          </div>
+          {(directoryBrowseQuery.data ?? []).length === 0 ? (
+            <div className={styles.empty}>
+              <p className={styles.emptyTitle}>{t('directory.empty')}</p>
+            </div>
+          ) : (
+            <div className={styles.list}>
+              {(directoryBrowseQuery.data ?? []).map((person) => (
+                <PersonRow
+                  key={person.publicId}
+                  person={person}
+                  onSelect={() => openDirectMutation.mutate(person.publicId)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : (
-        <div className={styles.list}>
-          {filteredChats.map((chat) => (
-            <ChatRow key={chat.chatPublicId} chat={chat} />
-          ))}
-        </div>
-      )}
+        <>
+          <SavedMessagesRow />
 
-      {searchQuery.data && searchQuery.data.messages.length > 0 ? (
-        <div className={styles.list}>
-          <div className={styles.searchSectionTitle}>{t('chatlist.search')}</div>
-          {searchQuery.data.messages.map((message) => (
-            <MessageResultRow key={message.messagePublicId} message={message} />
-          ))}
-        </div>
-      ) : null}
+          {filteredChats.length === 0 ? (
+            <div className={styles.empty}>
+              <p className={styles.emptyTitle}>
+                {search.trim() ? t('chatlist.noResults') : t('chatlist.empty.title')}
+              </p>
+              {!search.trim() ? (
+                <p className={styles.emptyHint}>{t('chatlist.empty.hint')}</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className={styles.list}>
+              {filteredChats.map((chat) => (
+                <ChatRow key={chat.chatPublicId} chat={chat} />
+              ))}
+            </div>
+          )}
+
+          {peopleQuery.data && peopleQuery.data.length > 0 ? (
+            <div className={styles.list}>
+              <div className={styles.searchSectionTitle}>{t('directory.section')}</div>
+              {peopleQuery.data.map((person) => (
+                <PersonRow
+                  key={person.publicId}
+                  person={person}
+                  onSelect={() => openDirectMutation.mutate(person.publicId)}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {searchQuery.data && searchQuery.data.messages.length > 0 ? (
+            <div className={styles.list}>
+              <div className={styles.searchSectionTitle}>{t('chatlist.search')}</div>
+              {searchQuery.data.messages.map((message) => (
+                <MessageResultRow key={message.messagePublicId} message={message} />
+              ))}
+            </div>
+          ) : null}
+        </>
+      )}
 
       {showFoldersModal ? (
         <FoldersModal folders={folders} onClose={() => setShowFoldersModal(false)} />
