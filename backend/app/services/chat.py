@@ -701,4 +701,5 @@ async def build_chat_out(db: AsyncSession, chat: Chat, member: ChatMember, viewe
         peer_last_seen_at=peer_last_seen_at,
         is_secret=chat.is_secret,
         peer_e2ee_public_key=peer_e2ee_public_key,
+        is_channel=chat.is_channel,
     )

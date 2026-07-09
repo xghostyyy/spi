@@ -21,6 +21,14 @@ export async function createGroup(title: string, memberUsernames: string[]): Pro
   return chatFromDto(res);
 }
 
+export async function createChannel(title: string, description?: string): Promise<Chat> {
+  const res = await apiFetch<ChatDto>('/api/v1/chats/channel', {
+    method: 'POST',
+    body: { title, description: description ?? null },
+  });
+  return chatFromDto(res);
+}
+
 export async function updateGroupInfo(
   chatPublicId: string,
   patch: { title?: string; description?: string | null },

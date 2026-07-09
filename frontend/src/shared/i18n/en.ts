@@ -192,4 +192,7 @@ export const en: Record<TranslationKey, string> = {
   'secretChat.headerHint': 'Secret chat',
   'secretChat.composerPlaceholder': 'Message (text only)…',
   'secretChat.decryptError': 'Could not decrypt message',
+  'channel.new': 'Channel',
+  'channel.titlePlaceholder': 'Channel name',
+  'channel.readOnlyNotice': 'Only the owner and admins can post in this channel',
 };

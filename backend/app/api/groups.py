@@ -53,6 +53,11 @@ class CreateGroupBody(BaseModel):
     member_usernames: list[str] = Field(default_factory=list)
 
 
+class CreateChannelBody(BaseModel):
+    title: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=512)
+
+
 class AddMembersBody(BaseModel):
     usernames: list[str] = Field(min_length=1, max_length=_MAX_MEMBERS_PER_REQUEST)
 
@@ -145,15 +150,55 @@ async def create_group(
     return await build_chat_out(db, chat, member, user)
 
 
+@router.post("/channel", response_model=ChatOut, status_code=status.HTTP_201_CREATED)
+async def create_channel(
+    body: CreateChannelBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ChatOut:
+    now = datetime.now(UTC)
+    chat = Chat(
+        public_id=str(ULID()),
+        type=ChatType.group,
+        is_channel=True,
+        title=body.title.strip(),
+        description=body.description.strip() if body.description else None,
+        owner_id=user.id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(chat)
+    await db.flush()
+
+    db.add(ChatMember(chat_id=chat.id, user_id=user.id, role=MemberRole.owner, joined_at=now))
+    await db.commit()
+
+    member_result = await db.execute(
+        select(ChatMember).where(ChatMember.chat_id == chat.id, ChatMember.user_id == user.id)
+    )
+    member = member_result.scalar_one()
+
+    await create_system_message(
+        db, chat, "channel_created", {"actor": user.public_id, "title": chat.title}
+    )
+
+    return await build_chat_out(db, chat, member, user)
+
+
 @router.get("/{chat_public_id}/members", response_model=list[ChatMemberOut])
 async def get_group_members(
     chat_public_id: str,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[ChatMemberOut]:
-    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+    chat, member = await get_membership_or_404(db, chat_public_id, user)
     _require_group(chat)
-    return await list_chat_members(db, chat.id)
+    members = await list_chat_members(db, chat.id)
+    if chat.is_channel and member.role == MemberRole.member:
+        # Обычные подписчики канала не видят список друг друга (приватность) —
+        # только владельца/админов, как в Telegram (см. ADR-022).
+        return [m for m in members if m.role in ("owner", "admin")]
+    return members
 
 
 @router.post(

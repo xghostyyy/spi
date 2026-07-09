@@ -30,6 +30,11 @@ export function SystemMessageRow({ message, memberNames, locale }: SystemMessage
         ? `${actor} создал(а) группу «${payload.title ?? ''}»`
         : `${actor} created the group "${payload.title ?? ''}"`;
       break;
+    case 'channel_created':
+      text = isRu
+        ? `${actor} создал(а) канал «${payload.title ?? ''}»`
+        : `${actor} created the channel "${payload.title ?? ''}"`;
+      break;
     case 'member_added':
       text = isRu ? `${actor} добавил(а) ${target}` : `${actor} added ${target}`;
       break;

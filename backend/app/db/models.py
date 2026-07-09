@@ -223,6 +223,7 @@ class Chat(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_secret: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_channel: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class ChatMember(Base):

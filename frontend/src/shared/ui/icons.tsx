@@ -82,6 +82,15 @@ export function LockIcon({ size, className }: IconProps) {
   );
 }
 
+export function MegaphoneIcon({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M3 10v4a1 1 0 0 0 1 1h2l1 5h2l-1-5h1l9 4V6l-9 4H4a1 1 0 0 0-1 1Z" />
+      <path d="M19 9.5a3.5 3.5 0 0 1 0 5" />
+    </svg>
+  );
+}
+
 export function GearIcon({ size, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

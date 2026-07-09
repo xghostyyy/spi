@@ -165,6 +165,7 @@ class ChatOut(BaseModel):
     peer_last_seen_at: datetime | None
     is_secret: bool
     peer_e2ee_public_key: str | None
+    is_channel: bool
 
 
 class FolderOut(BaseModel):

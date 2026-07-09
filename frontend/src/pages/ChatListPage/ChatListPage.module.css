@@ -158,6 +158,11 @@
   color: var(--color-success, #4cc35e);
 }
 
+.channelIcon {
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
 .rowTime {
   flex-shrink: 0;
   font-size: var(--font-size-xs);

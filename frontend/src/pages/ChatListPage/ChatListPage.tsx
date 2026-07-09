@@ -12,7 +12,7 @@ import {
   listChats,
 } from '../../features/chats/api';
 import { listFolders } from '../../features/folders/api';
-import { createGroup } from '../../features/groups/api';
+import { createChannel, createGroup } from '../../features/groups/api';
 import { search as searchApi } from '../../features/search/api';
 import { ApiError } from '../../shared/api/client';
 import { ensureIdentityKeyPair } from '../../shared/e2ee/e2ee';
@@ -27,6 +27,7 @@ import {
   FolderIcon,
   GearIcon,
   LockIcon,
+  MegaphoneIcon,
   PlusIcon,
   SearchIcon,
 } from '../../shared/ui/icons';
@@ -100,6 +101,7 @@ function ChatRow({ chat }: { chat: Chat }) {
         <div className={styles.rowTop}>
           <span className={styles.rowTitle}>
             {chat.isSecret ? <LockIcon size={14} className={styles.secretLockIcon} /> : null}
+            {chat.isChannel ? <MegaphoneIcon size={14} className={styles.channelIcon} /> : null}
             {chat.title}
           </span>
           {chat.lastMessage ? (
@@ -179,7 +181,9 @@ export function ChatListPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [creating, setCreating] = useState<'none' | 'choose' | 'chat' | 'group' | 'secret'>('none');
+  const [creating, setCreating] = useState<
+    'none' | 'choose' | 'chat' | 'group' | 'secret' | 'channel'
+  >('none');
   const [newChatUsername, setNewChatUsername] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [groupTitle, setGroupTitle] = useState('');
@@ -244,6 +248,16 @@ export function ChatListPage() {
       setCreating('none');
       setGroupTitle('');
       setGroupMembers('');
+      navigate(`/chat/${chat.chatPublicId}`);
+    },
+  });
+
+  const createChannelMutation = useMutation({
+    mutationFn: (title: string) => createChannel(title),
+    onSuccess: (chat) => {
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      setCreating('none');
+      setGroupTitle('');
       navigate(`/chat/${chat.chatPublicId}`);
     },
   });
@@ -326,6 +340,9 @@ export function ChatListPage() {
           <button type="button" onClick={() => setCreating('secret')}>
             {t('secretChat.new')}
           </button>
+          <button type="button" onClick={() => setCreating('channel')}>
+            {t('channel.new')}
+          </button>
         </div>
       ) : null}
 
@@ -376,6 +393,27 @@ export function ChatListPage() {
             placeholder={t('group.newGroup.membersPlaceholder')}
             value={groupMembers}
             onChange={(e) => setGroupMembers(e.target.value)}
+          />
+          <Button type="submit" size="md" disabled={!groupTitle.trim()}>
+            {t('group.newGroup.submit')}
+          </Button>
+        </form>
+      ) : null}
+
+      {creating === 'channel' ? (
+        <form
+          className={styles.newChatForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const title = groupTitle.trim();
+            if (title) createChannelMutation.mutate(title);
+          }}
+        >
+          <Input
+            autoFocus
+            placeholder={t('channel.titlePlaceholder')}
+            value={groupTitle}
+            onChange={(e) => setGroupTitle(e.target.value)}
           />
           <Button type="submit" size="md" disabled={!groupTitle.trim()}>
             {t('group.newGroup.submit')}

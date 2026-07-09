@@ -90,6 +90,19 @@
   color: var(--color-success, #4cc35e);
 }
 
+.channelIcon {
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.readOnlyNotice {
+  padding: var(--space-3);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+}
+
 .headerStatus {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);

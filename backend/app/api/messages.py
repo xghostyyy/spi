@@ -20,6 +20,7 @@ from app.db.models import (
     ChatMember,
     File,
     FileKind,
+    MemberRole,
     Message,
     MessageAttachment,
     MessageHidden,
@@ -65,6 +66,14 @@ _ENCRYPTED_NOT_ALLOWED = HTTPException(
     detail={
         "code": "encrypted_not_allowed",
         "message": "Шифрование доступно только в секретных чатах",
+    },
+)
+
+_CHANNEL_READ_ONLY = HTTPException(
+    status.HTTP_403_FORBIDDEN,
+    detail={
+        "code": "channel_read_only",
+        "message": "Публиковать в канале могут только владелец и администраторы",
     },
 )
 
@@ -197,7 +206,10 @@ async def send_message(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MessageOut:
-    chat, _member = await get_membership_or_404(db, chat_public_id, user)
+    chat, member = await get_membership_or_404(db, chat_public_id, user)
+
+    if chat.is_channel and member.role == MemberRole.member:
+        raise _CHANNEL_READ_ONLY
 
     if chat.is_secret:
         if body.encrypted is None or any(

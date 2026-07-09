@@ -22,6 +22,7 @@ export interface ChatDto {
   peer_last_seen_at: string | null;
   is_secret: boolean;
   peer_e2ee_public_key: string | null;
+  is_channel: boolean;
 }
 
 export function chatFromDto(dto: ChatDto): Chat {
@@ -45,6 +46,7 @@ export function chatFromDto(dto: ChatDto): Chat {
     peerLastSeenAt: dto.peer_last_seen_at,
     isSecret: dto.is_secret,
     peerE2eePublicKey: dto.peer_e2ee_public_key,
+    isChannel: dto.is_channel,
   };
 }
 

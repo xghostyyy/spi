@@ -190,6 +190,9 @@ export const ru = {
   'secretChat.headerHint': 'Секретный чат',
   'secretChat.composerPlaceholder': 'Сообщение (только текст)…',
   'secretChat.decryptError': 'Не удалось расшифровать сообщение',
+  'channel.new': 'Канал',
+  'channel.titlePlaceholder': 'Название канала',
+  'channel.readOnlyNotice': 'Публиковать в этом канале могут только владелец и администраторы',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

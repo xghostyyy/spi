@@ -146,7 +146,10 @@ CREATE TABLE chats (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     -- секретный чат (Фаза 6, ADR-021): только type='direct'; сообщения — E2EE,
     -- сервер хранит лишь шифротекст (messages.payload), не читает содержимое
-    is_secret      BOOLEAN NOT NULL DEFAULT FALSE
+    is_secret      BOOLEAN NOT NULL DEFAULT FALSE,
+    -- канал (Фаза 6, ADR-022): только type='group'; писать могут только
+    -- owner/admin, остальные участники — подписчики "только на чтение"
+    is_channel     BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TRIGGER trg_chats_updated BEFORE UPDATE ON chats
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();

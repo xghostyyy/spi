@@ -53,6 +53,7 @@ import {
   LinkIcon,
   LocationIcon,
   LockIcon,
+  MegaphoneIcon,
   MicIcon,
   PaperclipIcon,
   PhoneIcon,
@@ -108,6 +109,13 @@ function formatPresence(chat: Chat, locale: 'ru' | 'en', t: (k: 'chat.online') =
   if (minutes < 60) return `last seen ${minutes}m ago`;
   const hours = Math.round(minutes / 60);
   return hours < 24 ? `last seen ${hours}h ago` : '';
+}
+
+function formatSubscriberCount(count: number, locale: 'ru' | 'en'): string {
+  if (locale === 'ru') {
+    return `${count} ${pluralRu(count, 'подписчик', 'подписчика', 'подписчиков')}`;
+  }
+  return `${count} subscriber${count === 1 ? '' : 's'}`;
 }
 
 export function ChatPage() {
@@ -477,6 +485,7 @@ export function ChatPage() {
 
   const isSaved = chat?.type === 'saved';
   const displayTitle = isSaved ? t('chatlist.savedMessages') : (chat?.title ?? '…');
+  const isReadOnlyChannel = !!chat?.isChannel && chat.myRole === 'member';
 
   let lastDay = '';
 
@@ -499,16 +508,19 @@ export function ChatPage() {
           <div className={styles.headerInfo}>
             <span className={styles.headerTitle}>
               {chat?.isSecret ? <LockIcon size={14} className={styles.secretLockIcon} /> : null}
+              {chat?.isChannel ? <MegaphoneIcon size={14} className={styles.channelIcon} /> : null}
               {displayTitle}
             </span>
             <span className={styles.headerStatus}>
               {chat?.isSecret
                 ? t('secretChat.headerHint')
-                : typing
-                  ? t('chat.typing')
-                  : chat && !isSaved
-                    ? formatPresence(chat, locale, t)
-                    : ''}
+                : chat?.isChannel
+                  ? formatSubscriberCount(chat.memberCount ?? 0, locale)
+                  : typing
+                    ? t('chat.typing')
+                    : chat && !isSaved
+                      ? formatPresence(chat, locale, t)
+                      : ''}
             </span>
           </div>
         </button>
@@ -621,108 +633,115 @@ export function ChatPage() {
         })}
       </div>
 
-      <div className={styles.composer}>
-        {replyTo ? (
-          <div className={styles.replyPreview}>
-            <span className={styles.replyText}>
-              {t('chat.replyingTo')}: {replyTo.deletedForAll ? '…' : replyTo.body}
-            </span>
-            <button
-              type="button"
-              className={styles.replyCancel}
-              onClick={() => setReplyTo(null)}
-              aria-label={t('common.cancel')}
-            >
-              <CloseIcon size={14} />
-            </button>
-          </div>
-        ) : null}
-        {voiceRecorder.isRecording ? (
-          <div className={styles.composerRow}>
-            <IconButton label={t('common.cancel')} onClick={handleCancelVoice}>
-              <TrashIcon />
-            </IconButton>
-            <span className={styles.recordingIndicator}>{t('chat.recordingVoice')}</span>
-            <IconButton
-              label={t('chat.voiceMessage')}
-              variant="accent"
-              onClick={() => void handleStopAndSendVoice()}
-            >
-              <SendIcon size={18} />
-            </IconButton>
-          </div>
-        ) : (
-          <div className={styles.composerRow}>
-            {!chat?.isSecret ? (
-              <>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  hidden
-                  onChange={handleFileSelected}
-                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar,.txt"
-                />
-                <IconButton
-                  label={t('chat.attach')}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  <PaperclipIcon />
-                </IconButton>
-                <IconButton label={t('common.location')} onClick={handleSendLocation}>
-                  <LocationIcon />
-                </IconButton>
-                <IconButton label={t('common.contact')} onClick={() => setShowContactPicker(true)}>
-                  <ContactIcon />
-                </IconButton>
-                <IconButton label={t('poll.create')} onClick={() => setShowPollCreator(true)}>
-                  <PollIcon />
-                </IconButton>
-                <IconButton label={t('sticker.tab')} onClick={() => setShowStickerPicker(true)}>
-                  <StickerIcon />
-                </IconButton>
-              </>
-            ) : null}
-            <Input
-              className={styles.composerInput}
-              placeholder={
-                chat?.isSecret ? t('secretChat.composerPlaceholder') : t('chat.placeholder')
-              }
-              value={draft}
-              onChange={(e) => handleDraftChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-            />
-            {draft.trim() ? (
-              <>
-                {!chat?.isSecret ? (
-                  <IconButton
-                    label={t('schedule.title')}
-                    onClick={() => setShowScheduleModal(true)}
-                  >
-                    <ClockIcon size={18} />
-                  </IconButton>
-                ) : null}
-                <Button variant="primary" size="md" type="button" onClick={handleSend}>
-                  <SendIcon size={18} />
-                </Button>
-              </>
-            ) : !chat?.isSecret ? (
+      {isReadOnlyChannel ? (
+        <div className={styles.readOnlyNotice}>{t('channel.readOnlyNotice')}</div>
+      ) : (
+        <div className={styles.composer}>
+          {replyTo ? (
+            <div className={styles.replyPreview}>
+              <span className={styles.replyText}>
+                {t('chat.replyingTo')}: {replyTo.deletedForAll ? '…' : replyTo.body}
+              </span>
+              <button
+                type="button"
+                className={styles.replyCancel}
+                onClick={() => setReplyTo(null)}
+                aria-label={t('common.cancel')}
+              >
+                <CloseIcon size={14} />
+              </button>
+            </div>
+          ) : null}
+          {voiceRecorder.isRecording ? (
+            <div className={styles.composerRow}>
+              <IconButton label={t('common.cancel')} onClick={handleCancelVoice}>
+                <TrashIcon />
+              </IconButton>
+              <span className={styles.recordingIndicator}>{t('chat.recordingVoice')}</span>
               <IconButton
                 label={t('chat.voiceMessage')}
-                onClick={() => void voiceRecorder.start()}
-                disabled={uploading}
+                variant="accent"
+                onClick={() => void handleStopAndSendVoice()}
               >
-                <MicIcon />
+                <SendIcon size={18} />
               </IconButton>
-            ) : null}
-          </div>
-        )}
-      </div>
+            </div>
+          ) : (
+            <div className={styles.composerRow}>
+              {!chat?.isSecret ? (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    hidden
+                    onChange={handleFileSelected}
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar,.txt"
+                  />
+                  <IconButton
+                    label={t('chat.attach')}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <PaperclipIcon />
+                  </IconButton>
+                  <IconButton label={t('common.location')} onClick={handleSendLocation}>
+                    <LocationIcon />
+                  </IconButton>
+                  <IconButton
+                    label={t('common.contact')}
+                    onClick={() => setShowContactPicker(true)}
+                  >
+                    <ContactIcon />
+                  </IconButton>
+                  <IconButton label={t('poll.create')} onClick={() => setShowPollCreator(true)}>
+                    <PollIcon />
+                  </IconButton>
+                  <IconButton label={t('sticker.tab')} onClick={() => setShowStickerPicker(true)}>
+                    <StickerIcon />
+                  </IconButton>
+                </>
+              ) : null}
+              <Input
+                className={styles.composerInput}
+                placeholder={
+                  chat?.isSecret ? t('secretChat.composerPlaceholder') : t('chat.placeholder')
+                }
+                value={draft}
+                onChange={(e) => handleDraftChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+              />
+              {draft.trim() ? (
+                <>
+                  {!chat?.isSecret ? (
+                    <IconButton
+                      label={t('schedule.title')}
+                      onClick={() => setShowScheduleModal(true)}
+                    >
+                      <ClockIcon size={18} />
+                    </IconButton>
+                  ) : null}
+                  <Button variant="primary" size="md" type="button" onClick={handleSend}>
+                    <SendIcon size={18} />
+                  </Button>
+                </>
+              ) : !chat?.isSecret ? (
+                <IconButton
+                  label={t('chat.voiceMessage')}
+                  onClick={() => void voiceRecorder.start()}
+                  disabled={uploading}
+                >
+                  <MicIcon />
+                </IconButton>
+              ) : null}
+            </div>
+          )}
+        </div>
+      )}
 
       {lightboxUrl ? (
         <div className={styles.lightbox} onClick={() => setLightboxUrl(null)}>

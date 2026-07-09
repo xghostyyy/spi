@@ -20,6 +20,7 @@ export interface Chat {
   peerLastSeenAt: string | null;
   isSecret: boolean;
   peerE2eePublicKey: string | null;
+  isChannel: boolean;
 }
 
 export interface ChatMember {
