@@ -23,6 +23,22 @@ async def test_request_and_verify_code_issues_token(
     assert "spi_refresh" in resp.cookies
 
 
+async def test_request_code_returns_error_when_mail_send_fails(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SMTP-сбой (в т.ч. зависшее/недоступное соединение с таймаутом в mail.py)
+    должен вернуть понятную ошибку, а не оставить запрос без ответа."""
+
+    async def _boom(email: str, code: str) -> None:
+        raise TimeoutError("smtp connection timed out")
+
+    monkeypatch.setattr("app.api.auth.send_login_code", _boom)
+
+    resp = await client.post("/api/v1/auth/request-code", json={"email": "mailfail@example.com"})
+    assert resp.status_code == 502
+    assert resp.json()["code"] == "mail_send_failed"
+
+
 async def test_verify_code_wrong_code_rejected(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

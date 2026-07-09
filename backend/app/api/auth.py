@@ -115,7 +115,16 @@ async def request_code(
         )
     )
     await db.commit()
-    await send_login_code(body.email, code)
+    try:
+        await send_login_code(body.email, code)
+    except Exception as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "mail_send_failed",
+                "message": "Не удалось отправить письмо с кодом. Попробуйте ещё раз позже.",
+            },
+        ) from exc
 
 
 @router.post("/verify-code", response_model=AuthResponse)
