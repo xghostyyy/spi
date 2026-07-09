@@ -4,6 +4,14 @@
   height: 100dvh;
 }
 
+/* min-width:0 в grid-колонках — иначе широкий контент (медиа, длинные строки)
+   распирает колонку и вызывает горизонтальный скролл всей страницы. */
+.sidebar,
+.content {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .hiddenOnMobile {
   display: none;
 }

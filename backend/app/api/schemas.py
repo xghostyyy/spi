@@ -112,6 +112,16 @@ class UserOut(BaseModel):
         )
 
 
+class DirectoryUserOut(BaseModel):
+    """Карточка сотрудника в открытом каталоге (ADR-025). Без e-mail и приватных полей."""
+
+    public_id: str
+    username: str | None
+    display_name: str
+    avatar_url: str | None
+    online: bool
+
+
 class ChatMemberOut(BaseModel):
     user_public_id: str
     username: str | None

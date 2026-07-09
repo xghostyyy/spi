@@ -193,6 +193,27 @@ export const ru = {
   'channel.new': 'Канал',
   'channel.titlePlaceholder': 'Название канала',
   'channel.readOnlyNotice': 'Публиковать в этом канале могут только владелец и администраторы',
+
+  'attach.menu': 'Прикрепить',
+  'attach.photo': 'Фото',
+  'attach.video': 'Видео',
+  'attach.file': 'Файл',
+  'attach.videoNote': 'Видеокружок',
+  'attach.location': 'Геолокация',
+  'attach.contact': 'Контакт',
+  'attach.poll': 'Опрос',
+  'attach.sticker': 'Стикер / GIF',
+
+  'directory.title': 'Сотрудники',
+  'directory.open': 'Каталог сотрудников',
+  'directory.search': 'Поиск по имени или @username',
+  'directory.section': 'Люди',
+  'directory.empty': 'Никого не найдено',
+
+  'preview.videoNote': '⭕ Видеокружок',
+  'videoNote.record': 'Записать видеокружок',
+  'videoNote.recording': 'Идёт запись…',
+  'videoNote.hint': 'Нажмите «Стоп», чтобы отправить кружок',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

@@ -1,7 +1,30 @@
+import { useRef } from 'react';
+
 import type { FileAttachment } from '../../entities/message/model';
 import { FileIcon } from '../../shared/ui/icons';
 import styles from './ChatPage.module.css';
 import { VoicePlayer } from './VoicePlayer';
+
+/** Круглый видеокружок: тап — воспроизведение/пауза (см. ADR-026). */
+function VideoNotePlayer({ file }: { file: FileAttachment }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  function toggle() {
+    const el = ref.current;
+    if (!el) return;
+    if (el.paused) void el.play();
+    else el.pause();
+  }
+  return (
+    <video
+      ref={ref}
+      className={styles.videoNote}
+      src={file.url}
+      playsInline
+      preload="metadata"
+      onClick={toggle}
+    />
+  );
+}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -20,6 +43,10 @@ export function MessageAttachments({ attachments, type, onImageClick }: MessageA
 
   if (type === 'voice') {
     return <VoicePlayer file={attachments[0]!} />;
+  }
+
+  if (type === 'video_note') {
+    return <VideoNotePlayer file={attachments[0]!} />;
   }
 
   if (type === 'photo' || type === 'album') {

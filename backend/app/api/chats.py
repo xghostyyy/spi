@@ -38,7 +38,42 @@ _TAB_TYPES: dict[str, list[MessageType]] = {
 
 
 class CreateDirectChatBody(BaseModel):
-    username: str
+    username: str | None = None
+    peer_public_id: str | None = None
+
+
+_MISSING_TARGET = HTTPException(
+    status.HTTP_400_BAD_REQUEST,
+    detail={"code": "missing_target", "message": "Не указан пользователь"},
+)
+_USER_NOT_FOUND = HTTPException(
+    status.HTTP_404_NOT_FOUND,
+    detail={"code": "user_not_found", "message": "Пользователь не найден"},
+)
+_SELF_CHAT = HTTPException(
+    status.HTTP_400_BAD_REQUEST,
+    detail={"code": "self_chat", "message": "Нельзя создать чат с самим собой"},
+)
+
+
+async def _resolve_direct_target(db: AsyncSession, body: CreateDirectChatBody, user: User) -> User:
+    """Находит собеседника по peer_public_id (каталог, ADR-025) или по username."""
+    if body.peer_public_id:
+        result = await db.execute(
+            select(User).where(User.public_id == body.peer_public_id, User.is_deleted.is_(False))
+        )
+        target = result.scalar_one_or_none()
+    elif body.username:
+        username = body.username.strip().lstrip("@")
+        result = await db.execute(select(User).where(User.username == username))
+        target = result.scalar_one_or_none()
+    else:
+        raise _MISSING_TARGET
+    if target is None:
+        raise _USER_NOT_FOUND
+    if target.id == user.id:
+        raise _SELF_CHAT
+    return target
 
 
 class UpdateChatMembershipBody(BaseModel):
@@ -79,19 +114,7 @@ async def create_direct_chat(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ChatOut:
-    username = body.username.strip().lstrip("@")
-    if username == user.username:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail={"code": "self_chat", "message": "Нельзя создать чат с самим собой"},
-        )
-    target_result = await db.execute(select(User).where(User.username == username))
-    target = target_result.scalar_one_or_none()
-    if target is None:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND,
-            detail={"code": "user_not_found", "message": "Пользователь не найден"},
-        )
+    target = await _resolve_direct_target(db, body, user)
 
     chat = await get_or_create_direct_chat(db, user, target)
     await db.commit()
@@ -111,6 +134,8 @@ async def create_secret_chat(
 ) -> ChatOut:
     """Секретный (E2EE) чат — отдельная сущность от обычного direct-чата с тем же
     собеседником (см. ADR-021). Требует, чтобы у обоих был загружен E2EE-ключ."""
+    if not body.username:
+        raise _MISSING_TARGET
     username = body.username.strip().lstrip("@")
     if username == user.username:
         raise HTTPException(

@@ -14,11 +14,15 @@
 .bubble {
   position: relative;
   max-width: min(78%, 480px);
+  min-width: 0;
   padding: 8px 12px;
   border-radius: var(--radius-bubble);
   font-size: var(--font-size-base);
   line-height: 1.35;
-  word-break: break-word;
+  /* overflow-wrap переносит по границе слова и рвёт лишь слишком длинные (URL и т.п.);
+     word-break: normal убирает рваный перенос посреди обычных слов. */
+  overflow-wrap: break-word;
+  word-break: normal;
   white-space: pre-wrap;
 }
 
