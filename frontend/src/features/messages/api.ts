@@ -31,6 +31,7 @@ export async function sendMessage(
       outcome: 'answered' | 'missed' | 'declined' | 'canceled';
       durationSeconds?: number;
     };
+    encrypted?: { ciphertext: string; iv: string };
     scheduledAt?: string;
   },
 ): Promise<Message> {
@@ -75,6 +76,7 @@ export async function sendMessage(
             duration_seconds: input.call.durationSeconds ?? null,
           }
         : null,
+      encrypted: input.encrypted ?? null,
       scheduled_at: input.scheduledAt ?? null,
     },
   });
