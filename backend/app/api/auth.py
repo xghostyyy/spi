@@ -30,7 +30,31 @@ from app.services.mail import send_login_code
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_USERNAME_SANITIZE_RE = re.compile(r"[^a-z0-9]+")
 _CODE_TTL_MIN = 10
+
+
+async def _generate_unique_username(db: AsyncSession, email: str) -> str:
+    """Первичный @username из локальной части e-mail (см. правила в users.py:
+    латиница/цифры/_, начинается с буквы, 3-32 символа). При коллизии — суффикс."""
+    local = email.split("@", 1)[0].lower()
+    base = _USERNAME_SANITIZE_RE.sub("_", local).strip("_")
+    if not base or not base[0].isalpha():
+        base = f"user{base}"
+    base = base[:24]
+    if len(base) < 3:
+        base = f"{base}user"[:24]
+
+    candidate = base
+    suffix = 0
+    while True:
+        exists = await db.execute(select(User.id).where(User.username == candidate))
+        if exists.scalar_one_or_none() is None:
+            return candidate
+        suffix += 1
+        candidate = f"{base}{suffix}"[:32]
+
+
 _MAX_CODE_ATTEMPTS = 5
 _REFRESH_COOKIE = "spi_refresh"
 _REFRESH_COOKIE_PATH = "/api/v1/auth"
@@ -166,6 +190,7 @@ async def verify_code(
             email=email,
             email_verified=True,
             display_name=email.split("@", 1)[0],
+            username=await _generate_unique_username(db, email),
             created_at=now,
             updated_at=now,
         )

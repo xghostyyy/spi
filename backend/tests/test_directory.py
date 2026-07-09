@@ -71,14 +71,13 @@ async def test_directory_search_filters_by_name(
 async def test_start_direct_chat_by_public_id(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Каталог отдаёт public_id — чат создаётся по нему даже без username у собеседника."""
+    """Каталог отдаёт public_id — чат создаётся по нему (не обязательно по username)."""
     alice_token = await _login(client, monkeypatch, "dir3-alice@example.com", "555555")
     bob_token = await _login(client, monkeypatch, "dir3-bob@example.com", "666666")
     alice_headers = {"Authorization": f"Bearer {alice_token}"}
 
     bob_me = await client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {bob_token}"})
     bob_public_id = bob_me.json()["public_id"]
-    assert bob_me.json()["username"] is None  # username не задан
 
     chat_resp = await client.post(
         "/api/v1/chats", json={"peer_public_id": bob_public_id}, headers=alice_headers

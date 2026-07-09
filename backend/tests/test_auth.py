@@ -23,6 +23,17 @@ async def test_request_and_verify_code_issues_token(
     assert "spi_refresh" in resp.cookies
 
 
+async def test_registration_generates_username_from_email(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.api.auth.generate_login_code", lambda: "123123")
+    email = "Dima.Thavaluk789@example.com"
+    await client.post("/api/v1/auth/request-code", json={"email": email})
+    resp = await client.post("/api/v1/auth/verify-code", json={"email": email, "code": "123123"})
+    assert resp.status_code == 200
+    assert resp.json()["user"]["username"] == "dima_thavaluk789"
+
+
 async def test_request_code_returns_error_when_mail_send_fails(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
