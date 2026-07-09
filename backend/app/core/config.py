@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     s3_bucket: str = "spi-media"
 
     # --- Почта (пусто в dev = код входа пишется в лог) ---
+    # smtp_api_key — приоритетный способ (HTTP API поставщика письма, порт 443);
+    # smtp_host/user/password — сырой SMTP (fallback для локальной разработки или
+    # провайдеров без HTTP API). См. ADR-024: у многих VPS исходящий SMTP (587/465)
+    # заблокирован по умолчанию, а исходящий HTTPS — почти никогда.
+    smtp_api_key: str = ""
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""

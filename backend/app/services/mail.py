@@ -1,4 +1,6 @@
-"""Отправка e-mail. В dev (без SMTP) код входа пишется в лог вместо письма."""
+"""Отправка e-mail. Приоритет — HTTP API smtp.bz (порт 443), fallback — сырой SMTP
+(aiosmtplib), в dev без того и другого код входа пишется в лог. См. ADR-024:
+многие VPS-провайдеры по умолчанию блокируют исходящий SMTP (587/465), но не HTTPS."""
 
 from __future__ import annotations
 
@@ -7,34 +9,62 @@ import logging
 from email.message import EmailMessage
 
 import aiosmtplib
+import httpx
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 
 logger = logging.getLogger("spi.mail")
 
-# Без таймаута зависшее (не отклонённое, а именно "тишина") TCP-соединение к SMTP
-# (например, исходящий порт 587 заблокирован провайдером VPS) вешает весь HTTP-запрос
-# POST /auth/request-code бесконечно — пользователь видит "кнопка не отвечает".
-# С таймаутом код входа уже создан в БД к этому моменту (см. app/api/auth.py) — при
-# ошибке отправки пользователь получит понятный 5xx вместо зависшего запроса.
-_SMTP_TIMEOUT_SECONDS = 10
+_SMTP_BZ_API_URL = "https://api.smtp.bz/v1/smtp/send"
+_SEND_TIMEOUT_SECONDS = 10.0
+_LOGIN_CODE_SUBJECT = "Код входа в SPI Messenger"
 
 
 async def send_login_code(email: str, code: str) -> None:
     settings = get_settings()
+    body_text = f"Ваш код входа: {code}\nКод действителен 10 минут."
 
-    if not settings.smtp_host:
-        logger.info("[DEV] Login code for %s: %s", email, code)
+    if settings.smtp_api_key:
+        await _send_via_api(settings, email, body_text)
         return
 
+    if settings.smtp_host:
+        await _send_via_smtp(settings, email, body_text)
+        return
+
+    logger.info("[DEV] Login code for %s: %s", email, code)
+
+
+async def _send_via_api(settings: Settings, to: str, body_text: str) -> None:
+    html_body = f"<html><body><p>{body_text.replace(chr(10), '<br>')}</p></body></html>"
+    try:
+        async with httpx.AsyncClient(timeout=_SEND_TIMEOUT_SECONDS) as client:
+            resp = await client.post(
+                _SMTP_BZ_API_URL,
+                headers={"Authorization": settings.smtp_api_key},
+                json={
+                    "from": settings.mail_from,
+                    "to": to,
+                    "subject": _LOGIN_CODE_SUBJECT,
+                    "html": html_body,
+                    "text": body_text,
+                },
+            )
+            resp.raise_for_status()
+    except httpx.HTTPError:
+        logger.exception("Не удалось отправить письмо с кодом входа на %s через API", to)
+        raise
+
+
+async def _send_via_smtp(settings: Settings, to: str, body_text: str) -> None:
     message = EmailMessage()
     message["From"] = settings.mail_from
-    message["To"] = email
-    message["Subject"] = "Код входа в SPI Messenger"
-    message.set_content(f"Ваш код входа: {code}\nКод действителен 10 минут.")
+    message["To"] = to
+    message["Subject"] = _LOGIN_CODE_SUBJECT
+    message.set_content(body_text)
 
     try:
-        async with asyncio.timeout(_SMTP_TIMEOUT_SECONDS):
+        async with asyncio.timeout(_SEND_TIMEOUT_SECONDS):
             await aiosmtplib.send(
                 message,
                 hostname=settings.smtp_host,
@@ -44,5 +74,5 @@ async def send_login_code(email: str, code: str) -> None:
                 start_tls=True,
             )
     except (TimeoutError, aiosmtplib.SMTPException):
-        logger.exception("Не удалось отправить письмо с кодом входа на %s", email)
+        logger.exception("Не удалось отправить письмо с кодом входа на %s через SMTP", to)
         raise
