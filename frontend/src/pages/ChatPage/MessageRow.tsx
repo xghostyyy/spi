@@ -39,7 +39,7 @@ interface MessageRowProps {
   onDelete: (scope: 'self' | 'all') => void;
   onImageClick: (url: string) => void;
   onToggleBookmark: () => void;
-  onForward: () => void;
+  onForward?: () => void;
   onPin?: () => void;
   onVotePoll: (optionPositions: number[]) => void;
   onClosePoll: () => void;
@@ -238,7 +238,7 @@ export function MessageRow({
         >
           <ReplyIcon size={16} />
         </button>
-        {!message.deletedForAll ? (
+        {!message.deletedForAll && onForward ? (
           <button
             type="button"
             className={styles.actionIcon}

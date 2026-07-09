@@ -125,7 +125,14 @@ async def notify_chat_members(
 
 async def notify_message_sent(db: AsyncSession, chat: Chat, message: Message, sender: User) -> None:
     """Пуш офлайн-участникам о новом (или только что доставленном отложенном) сообщении."""
-    preview = _push_preview(message.type, message.body)
+    # Секретный чат: превью никогда не показываем, даже без body (сервер и так не
+    # читает содержимое — но text-тип по умолчанию не имеет "иконки"-заглушки в
+    # _PUSH_PREVIEW_BY_TYPE, так что без явного оверрайда тело пуша было бы пустым).
+    preview = (
+        "🔒 Зашифрованное сообщение"
+        if chat.is_secret
+        else _push_preview(message.type, message.body)
+    )
     title = chat.title if chat.type == ChatType.group else sender.display_name
     body = f"{sender.display_name}: {preview}" if chat.type == ChatType.group else preview
     await notify_chat_members(db, chat.id, sender.id, title or "SPI", body, chat.public_id)

@@ -274,3 +274,27 @@ ADR-020) — звонок может не установиться через с
 - `POST .../messages` принимает `call: {kind: audio|video, outcome: answered|missed|
   declined|canceled, duration_seconds?}` — лог звонка в истории, пишется только звонящей
   стороной после завершения сигналинга (не часть самого сигналинга).
+
+## Реализовано (Фаза 6, секретные чаты — E2EE)
+
+Крипто (ECDH P-256 + AES-GCM, без Double Ratchet) и все ограничения — см. ADR-021.
+
+- `POST /api/v1/users/me/e2ee-key` `{public_key}` — публикует ECDH-публичный ключ
+  (base64 SPKI) текущего пользователя. `UserOut`/`ChatOut` теперь содержат
+  `e2ee_public_key` и `peer_e2ee_public_key` соответственно.
+- `POST /api/v1/chats/secret` `{username}` — создаёт (или возвращает существующий)
+  секретный чат с пользователем. Требует ключ у ОБОИХ участников: `400 no_e2ee_key`
+  (нет своего) / `400 peer_no_e2ee_key` (нет у собеседника). Отдельная сущность от
+  обычного `POST /api/v1/chats` с тем же собеседником — оба могут существовать
+  одновременно.
+- `POST .../messages` в секретном чате (`chat.is_secret = true`) принимает **только**
+  `encrypted: {ciphertext, iv}` (оба — base64). Любое другое поле (`body`,
+  `file_public_ids`, `contact`, `location`, `poll`, `sticker`, `gif`, `call`,
+  `forward_from_message_public_id`) — `400 secret_chat_text_only`. В обычном чате поле
+  `encrypted`, наоборот, запрещено — `400 encrypted_not_allowed`.
+- `PATCH .../messages/{id}` (редактирование) в секретном чате — `400 secret_chat_no_edit`.
+  Пересылка сообщения ИЗ секретного чата (в любой чат) — `400 cannot_forward_secret`.
+- `GET /api/v1/search` полностью исключает секретные чаты — ни по названию/собеседнику,
+  ни по содержимому.
+- Пуш-уведомление о сообщении в секретном чате всегда показывает фиксированный текст
+  «🔒 Зашифрованное сообщение», никогда не производный от содержимого.

@@ -74,12 +74,20 @@
 }
 
 .headerTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--color-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.secretLockIcon {
+  flex-shrink: 0;
+  color: var(--color-success, #4cc35e);
 }
 
 .headerStatus {

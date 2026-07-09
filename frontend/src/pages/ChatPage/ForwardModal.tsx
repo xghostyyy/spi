@@ -15,7 +15,7 @@ interface ForwardModalProps {
 export function ForwardModal({ onSelect, onClose }: ForwardModalProps) {
   const t = useT();
   const chatsQuery = useQuery({ queryKey: ['chats'], queryFn: listChats });
-  const chats = (chatsQuery.data ?? []).filter((c) => c.type !== 'saved');
+  const chats = (chatsQuery.data ?? []).filter((c) => c.type !== 'saved' && !c.isSecret);
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>

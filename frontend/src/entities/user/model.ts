@@ -9,4 +9,5 @@ export interface User {
   locale: 'ru' | 'en';
   privacyLastSeen: 'all' | 'contacts' | 'nobody';
   privacyAvatar: 'all' | 'contacts' | 'nobody';
+  e2eePublicKey: string | null;
 }

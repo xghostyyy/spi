@@ -142,6 +142,7 @@ class User(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    e2ee_public_key: Mapped[str | None] = mapped_column(Text)
 
     avatar_file: Mapped[File | None] = relationship(foreign_keys=[avatar_file_id])
 
@@ -221,6 +222,7 @@ class Chat(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_secret: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class ChatMember(Base):

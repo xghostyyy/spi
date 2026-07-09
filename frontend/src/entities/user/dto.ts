@@ -13,6 +13,7 @@ export interface UserDto {
   locale: 'ru' | 'en';
   privacy_last_seen: 'all' | 'contacts' | 'nobody';
   privacy_avatar: 'all' | 'contacts' | 'nobody';
+  e2ee_public_key: string | null;
 }
 
 export function userFromDto(dto: UserDto): User {
@@ -27,5 +28,6 @@ export function userFromDto(dto: UserDto): User {
     locale: dto.locale,
     privacyLastSeen: dto.privacy_last_seen,
     privacyAvatar: dto.privacy_avatar,
+    e2eePublicKey: dto.e2ee_public_key,
   };
 }

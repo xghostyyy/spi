@@ -183,6 +183,13 @@ export const ru = {
   'call.log.missed': 'Пропущенный звонок',
   'call.log.declined': 'Звонок отклонён',
   'call.log.canceled': 'Отменённый звонок',
+  'secretChat.new': 'Секретный чат',
+  'secretChat.hint': 'Сообщения шифруются end-to-end и доступны только на этом устройстве',
+  'secretChat.preview': '🔒 Зашифрованное сообщение',
+  'secretChat.peerNoKey': 'У собеседника не настроено шифрование',
+  'secretChat.headerHint': 'Секретный чат',
+  'secretChat.composerPlaceholder': 'Сообщение (только текст)…',
+  'secretChat.decryptError': 'Не удалось расшифровать сообщение',
 } as const;
 
 export type TranslationKey = keyof typeof ru;

@@ -16,6 +16,7 @@ from ulid import ULID
 from app.api.schemas import MessageOut
 from app.core.deps import get_current_user
 from app.db.models import (
+    Chat,
     ChatMember,
     File,
     FileKind,
@@ -49,6 +50,22 @@ _EDIT_DELETE_ALL_WINDOW = timedelta(hours=48)
 _MESSAGE_NOT_FOUND = HTTPException(
     status.HTTP_404_NOT_FOUND,
     detail={"code": "message_not_found", "message": "Сообщение не найдено"},
+)
+
+_SECRET_CHAT_TEXT_ONLY = HTTPException(
+    status.HTTP_400_BAD_REQUEST,
+    detail={
+        "code": "secret_chat_text_only",
+        "message": "В секретном чате поддерживаются только зашифрованные текстовые сообщения",
+    },
+)
+
+_ENCRYPTED_NOT_ALLOWED = HTTPException(
+    status.HTTP_400_BAD_REQUEST,
+    detail={
+        "code": "encrypted_not_allowed",
+        "message": "Шифрование доступно только в секретных чатах",
+    },
 )
 
 
@@ -89,6 +106,11 @@ class CallPayload(BaseModel):
     duration_seconds: int | None = Field(default=None, ge=0)
 
 
+class EncryptedPayload(BaseModel):
+    ciphertext: str = Field(min_length=1, max_length=16000)
+    iv: str = Field(min_length=1, max_length=64)
+
+
 class SendMessageBody(BaseModel):
     client_msg_id: uuid.UUID
     body: str | None = Field(default=None, max_length=8000)
@@ -101,6 +123,7 @@ class SendMessageBody(BaseModel):
     sticker: StickerPayload | None = None
     gif: GifPayload | None = None
     call: CallPayload | None = None
+    encrypted: EncryptedPayload | None = None
     scheduled_at: datetime | None = None
 
 
@@ -176,6 +199,24 @@ async def send_message(
 ) -> MessageOut:
     chat, _member = await get_membership_or_404(db, chat_public_id, user)
 
+    if chat.is_secret:
+        if body.encrypted is None or any(
+            [
+                body.body,
+                body.file_public_ids,
+                body.forward_from_message_public_id,
+                body.contact,
+                body.location,
+                body.poll,
+                body.sticker,
+                body.gif,
+                body.call,
+            ]
+        ):
+            raise _SECRET_CHAT_TEXT_ONLY
+    elif body.encrypted is not None:
+        raise _ENCRYPTED_NOT_ALLOWED
+
     if body.scheduled_at is not None and body.scheduled_at <= datetime.now(UTC):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -227,6 +268,17 @@ async def send_message(
         )
         if source_member_result.scalar_one_or_none() is None:
             raise _MESSAGE_NOT_FOUND
+        source_chat_result = await db.execute(
+            select(Chat.is_secret).where(Chat.id == source.chat_id)
+        )
+        if source_chat_result.scalar_one():
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "cannot_forward_secret",
+                    "message": "Сообщения из секретных чатов нельзя пересылать",
+                },
+            )
 
         message_type = source.type
         final_body = source.body
@@ -239,6 +291,10 @@ async def send_message(
             .order_by(MessageAttachment.position)
         )
         attachments_to_link = [tuple(row) for row in source_attachments_result.all()]
+    elif body.encrypted is not None:
+        message_type = MessageType.text
+        final_body = None
+        payload = body.encrypted.model_dump()
     elif body.contact is not None:
         message_type = MessageType.contact
         final_body = None
@@ -366,6 +422,14 @@ async def edit_message(
     chat, _member = await get_membership_or_404(db, chat_public_id, user)
     message = await _get_message_or_404(db, chat.id, message_public_id)
 
+    if chat.is_secret:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "secret_chat_no_edit",
+                "message": "Редактирование сообщений в секретных чатах не поддерживается",
+            },
+        )
     if message.sender_id != user.id:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,

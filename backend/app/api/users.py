@@ -39,6 +39,10 @@ class ProfilePatch(BaseModel):
     privacy_avatar: PrivacyLevel | None = None
 
 
+class E2eeKeyBody(BaseModel):
+    public_key: str = Field(min_length=1, max_length=2048)
+
+
 async def _load_avatar(db: AsyncSession, user: User) -> File | None:
     if not user.avatar_file_id:
         return None
@@ -94,6 +98,21 @@ async def update_me(
     await db.commit()
     await db.refresh(user)
 
+    avatar_file = await _load_avatar(db, user)
+    return UserOut.from_model(user, avatar_file)
+
+
+@router.post("/me/e2ee-key", response_model=UserOut)
+async def set_e2ee_key(
+    body: E2eeKeyBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserOut:
+    """Публичный ключ ECDH (P-256, base64 SPKI) для секретных чатов (Фаза 6, ADR-021).
+    Приватный ключ никогда не отправляется на сервер."""
+    user.e2ee_public_key = body.public_key
+    await db.commit()
+    await db.refresh(user)
     avatar_file = await _load_avatar(db, user)
     return UserOut.from_model(user, avatar_file)
 

@@ -33,6 +33,14 @@ export async function checkUsernameAvailable(username: string): Promise<boolean>
   return res.available;
 }
 
+export async function uploadE2eeKey(publicKey: string): Promise<User> {
+  const res = await apiFetch<UserDto>('/api/v1/users/me/e2ee-key', {
+    method: 'POST',
+    body: { public_key: publicKey },
+  });
+  return userFromDto(res);
+}
+
 const API_BASE_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 

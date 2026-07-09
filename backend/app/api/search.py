@@ -43,6 +43,7 @@ async def search(
             ChatMember.user_id == user.id,
             ChatMember.left_at.is_(None),
             Chat.type == ChatType.direct,
+            Chat.is_secret.is_(False),
             or_(User.display_name.ilike(pattern), User.username.ilike(pattern)),
         )
         .limit(20)
@@ -51,8 +52,14 @@ async def search(
         await build_chat_out(db, chat, member, user) for chat, member in chats_result.all()
     ]
 
+    # Секретные чаты исключены из поиска целиком (см. ADR-021) — не только из-за
+    # содержимого (тело и так шифротекст, полнотекстовый индекс по нему пуст),
+    # но и по умолчанию приватности: сам факт существования секретного чата
+    # не должен всплывать через обычный поиск.
     my_chat_ids = select(ChatMember.chat_id).where(
-        ChatMember.user_id == user.id, ChatMember.left_at.is_(None)
+        ChatMember.user_id == user.id,
+        ChatMember.left_at.is_(None),
+        ChatMember.chat_id.in_(select(Chat.id).where(Chat.is_secret.is_(False))),
     )
     messages_result = await db.execute(
         select(Message)

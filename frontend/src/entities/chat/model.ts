@@ -18,6 +18,8 @@ export interface Chat {
   peerUsername: string | null;
   peerOnline: boolean;
   peerLastSeenAt: string | null;
+  isSecret: boolean;
+  peerE2eePublicKey: string | null;
 }
 
 export interface ChatMember {

@@ -238,11 +238,17 @@ async def join_chat_via_invite(
 
 
 async def get_or_create_direct_chat(db: AsyncSession, user_a: User, user_b: User) -> Chat:
-    """Находит существующий direct-чат между двумя пользователями либо создаёт новый."""
+    """Находит существующий (не секретный) direct-чат между двумя пользователями
+    либо создаёт новый. Секретные чаты (is_secret=True) — отдельная сущность,
+    см. get_or_create_secret_chat и ADR-021."""
     existing = await db.execute(
         select(Chat)
         .join(ChatMember, ChatMember.chat_id == Chat.id)
-        .where(Chat.type == ChatType.direct, ChatMember.user_id == user_a.id)
+        .where(
+            Chat.type == ChatType.direct,
+            Chat.is_secret.is_(False),
+            ChatMember.user_id == user_a.id,
+        )
         .where(Chat.id.in_(select(ChatMember.chat_id).where(ChatMember.user_id == user_b.id)))
     )
     chat = existing.scalars().first()
@@ -253,6 +259,44 @@ async def get_or_create_direct_chat(db: AsyncSession, user_a: User, user_b: User
     chat = Chat(
         public_id=str(ULID()),
         type=ChatType.direct,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(chat)
+    await db.flush()
+
+    db.add_all(
+        [
+            ChatMember(chat_id=chat.id, user_id=user_a.id, joined_at=now),
+            ChatMember(chat_id=chat.id, user_id=user_b.id, joined_at=now),
+        ]
+    )
+    await db.flush()
+    return chat
+
+
+async def get_or_create_secret_chat(db: AsyncSession, user_a: User, user_b: User) -> Chat:
+    """Аналог get_or_create_direct_chat, но для секретных (E2EE) чатов — отдельная
+    сущность от обычного direct-чата тех же двух пользователей (см. ADR-021)."""
+    existing = await db.execute(
+        select(Chat)
+        .join(ChatMember, ChatMember.chat_id == Chat.id)
+        .where(
+            Chat.type == ChatType.direct,
+            Chat.is_secret.is_(True),
+            ChatMember.user_id == user_a.id,
+        )
+        .where(Chat.id.in_(select(ChatMember.chat_id).where(ChatMember.user_id == user_b.id)))
+    )
+    chat = existing.scalars().first()
+    if chat is not None:
+        return chat
+
+    now = datetime.now(UTC)
+    chat = Chat(
+        public_id=str(ULID()),
+        type=ChatType.direct,
+        is_secret=True,
         created_at=now,
         updated_at=now,
     )
@@ -603,6 +647,7 @@ async def build_chat_out(db: AsyncSession, chat: Chat, member: ChatMember, viewe
     peer_public_id: str | None = None
     peer_username: str | None = None
     peer_last_seen_at: datetime | None = None
+    peer_e2ee_public_key: str | None = None
     avatar_url: str | None
 
     if chat.type == ChatType.direct:
@@ -617,6 +662,7 @@ async def build_chat_out(db: AsyncSession, chat: Chat, member: ChatMember, viewe
             peer_public_id = peer.public_id
             peer_username = peer.username
             peer_last_seen_at = peer.last_seen_at
+            peer_e2ee_public_key = peer.e2ee_public_key
     else:
         title = chat.title or ""
         avatar_url = await avatar_url_for(db, chat.avatar_file_id)
@@ -653,4 +699,6 @@ async def build_chat_out(db: AsyncSession, chat: Chat, member: ChatMember, viewe
         peer_username=peer_username,
         peer_online=False,
         peer_last_seen_at=peer_last_seen_at,
+        is_secret=chat.is_secret,
+        peer_e2ee_public_key=peer_e2ee_public_key,
     )

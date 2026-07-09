@@ -17,6 +17,14 @@ export async function createDirectChat(username: string): Promise<Chat> {
   return chatFromDto(res);
 }
 
+export async function createSecretChat(username: string): Promise<Chat> {
+  const res = await apiFetch<ChatDto>('/api/v1/chats/secret', {
+    method: 'POST',
+    body: { username },
+  });
+  return chatFromDto(res);
+}
+
 export async function getSavedChat(): Promise<Chat> {
   const res = await apiFetch<ChatDto>('/api/v1/chats/saved');
   return chatFromDto(res);

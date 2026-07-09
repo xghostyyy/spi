@@ -92,6 +92,7 @@ class UserOut(BaseModel):
     locale: str
     privacy_last_seen: PrivacyLevel
     privacy_avatar: PrivacyLevel
+    e2ee_public_key: str | None
 
     @staticmethod
     def from_model(user: User, avatar_file: File | None = None) -> UserOut:
@@ -107,6 +108,7 @@ class UserOut(BaseModel):
             locale=user.locale,
             privacy_last_seen=user.privacy_last_seen,
             privacy_avatar=user.privacy_avatar,
+            e2ee_public_key=user.e2ee_public_key,
         )
 
 
@@ -161,6 +163,8 @@ class ChatOut(BaseModel):
     peer_username: str | None
     peer_online: bool
     peer_last_seen_at: datetime | None
+    is_secret: bool
+    peer_e2ee_public_key: str | None
 
 
 class FolderOut(BaseModel):

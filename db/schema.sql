@@ -55,7 +55,10 @@ CREATE TABLE users (
     is_admin        BOOLEAN      NOT NULL DEFAULT FALSE,     -- админ сервера (экспорт данных)
     is_deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    -- секретные чаты (Фаза 6): публичный ключ ECDH P-256 (base64 SPKI), приватный
+    -- ключ никогда не покидает браузер (см. ADR-021)
+    e2ee_public_key TEXT
 );
 CREATE INDEX idx_users_username ON users (username);
 CREATE TRIGGER trg_users_updated BEFORE UPDATE ON users
@@ -140,7 +143,10 @@ CREATE TABLE chats (
     avatar_file_id BIGINT REFERENCES files(id) ON DELETE SET NULL,
     owner_id       BIGINT REFERENCES users(id) ON DELETE SET NULL, -- владелец группы / хозяин saved
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- секретный чат (Фаза 6, ADR-021): только type='direct'; сообщения — E2EE,
+    -- сервер хранит лишь шифротекст (messages.payload), не читает содержимое
+    is_secret      BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TRIGGER trg_chats_updated BEFORE UPDATE ON chats
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();

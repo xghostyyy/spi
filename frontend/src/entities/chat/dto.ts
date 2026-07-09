@@ -20,6 +20,8 @@ export interface ChatDto {
   peer_username: string | null;
   peer_online: boolean;
   peer_last_seen_at: string | null;
+  is_secret: boolean;
+  peer_e2ee_public_key: string | null;
 }
 
 export function chatFromDto(dto: ChatDto): Chat {
@@ -41,6 +43,8 @@ export function chatFromDto(dto: ChatDto): Chat {
     peerUsername: dto.peer_username,
     peerOnline: dto.peer_online,
     peerLastSeenAt: dto.peer_last_seen_at,
+    isSecret: dto.is_secret,
+    peerE2eePublicKey: dto.peer_e2ee_public_key,
   };
 }
 

@@ -33,6 +33,12 @@ import {
   votePoll,
 } from '../../features/messages/api';
 import { callManager } from '../../shared/calls/CallManager';
+import {
+  decryptText,
+  encryptText,
+  ensureIdentityKeyPair,
+  getOrDeriveSharedKey,
+} from '../../shared/e2ee/e2ee';
 import { pluralRu, useLocaleStore, useT } from '../../shared/i18n';
 import type { StickerDef } from '../../shared/stickers/catalog';
 import { Avatar } from '../../shared/ui/Avatar';
@@ -46,6 +52,7 @@ import {
   ContactIcon,
   LinkIcon,
   LocationIcon,
+  LockIcon,
   MicIcon,
   PaperclipIcon,
   PhoneIcon,
@@ -150,7 +157,39 @@ export function ChatPage() {
     queryFn: () => listMessages(chatId!),
     enabled: !!chatId,
   });
-  const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
+  const rawMessages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
+
+  const [decryptedBodies, setDecryptedBodies] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!chat?.isSecret || !chat.peerE2eePublicKey || !chatId) return;
+    const peerKey = chat.peerE2eePublicKey;
+    let cancelled = false;
+    (async () => {
+      const pair = await ensureIdentityKeyPair(me?.e2eePublicKey ?? null);
+      const sharedKey = await getOrDeriveSharedKey(chatId, pair.privateKey, peerKey);
+      const entries = await Promise.all(
+        rawMessages.map(async (message) => {
+          const payload = message.payload as { ciphertext?: string; iv?: string } | null;
+          if (!payload?.ciphertext || !payload.iv) return null;
+          const plain = await decryptText(sharedKey, payload.ciphertext, payload.iv);
+          return [message.messagePublicId, plain ?? t('secretChat.decryptError')] as const;
+        }),
+      );
+      if (cancelled) return;
+      setDecryptedBodies(
+        Object.fromEntries(entries.filter((e): e is readonly [string, string] => e !== null)),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chat?.isSecret, chat?.peerE2eePublicKey, chatId, rawMessages, me?.e2eePublicKey, t]);
+
+  const messages = useMemo(() => {
+    if (!chat?.isSecret) return rawMessages;
+    return rawMessages.map((m) => ({ ...m, body: decryptedBodies[m.messagePublicId] ?? '' }));
+  }, [rawMessages, chat?.isSecret, decryptedBodies]);
 
   const messageByPublicId = useMemo(() => {
     const map = new Map<string, Message>();
@@ -169,12 +208,27 @@ export function ChatPage() {
   }, [chatId, messages]);
 
   const sendMutation = useMutation({
-    mutationFn: (body: string) =>
-      sendMessage(chatId!, {
+    mutationFn: async (body: string) => {
+      if (chat?.isSecret && chat.peerE2eePublicKey && chatId) {
+        const pair = await ensureIdentityKeyPair(me?.e2eePublicKey ?? null);
+        const sharedKey = await getOrDeriveSharedKey(
+          chatId,
+          pair.privateKey,
+          chat.peerE2eePublicKey,
+        );
+        const encrypted = await encryptText(sharedKey, body);
+        return sendMessage(chatId, {
+          clientMsgId: crypto.randomUUID(),
+          encrypted,
+          replyToPublicId: replyTo?.messagePublicId,
+        });
+      }
+      return sendMessage(chatId!, {
         clientMsgId: crypto.randomUUID(),
         body,
         replyToPublicId: replyTo?.messagePublicId,
-      }),
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
       void queryClient.invalidateQueries({ queryKey: ['chats'] });
@@ -443,9 +497,18 @@ export function ChatPage() {
         >
           <Avatar name={displayTitle} src={chat?.avatarUrl} size={40} online={chat?.peerOnline} />
           <div className={styles.headerInfo}>
-            <span className={styles.headerTitle}>{displayTitle}</span>
+            <span className={styles.headerTitle}>
+              {chat?.isSecret ? <LockIcon size={14} className={styles.secretLockIcon} /> : null}
+              {displayTitle}
+            </span>
             <span className={styles.headerStatus}>
-              {typing ? t('chat.typing') : chat && !isSaved ? formatPresence(chat, locale, t) : ''}
+              {chat?.isSecret
+                ? t('secretChat.headerHint')
+                : typing
+                  ? t('chat.typing')
+                  : chat && !isSaved
+                    ? formatPresence(chat, locale, t)
+                    : ''}
             </span>
           </div>
         </button>
@@ -459,7 +522,7 @@ export function ChatPage() {
             <ClockIcon />
           </IconButton>
         ) : null}
-        {chat?.type === 'direct' && chat.peerPublicId ? (
+        {chat?.type === 'direct' && !chat.isSecret && chat.peerPublicId ? (
           <>
             <IconButton
               label={t('chat.call')}
@@ -538,7 +601,7 @@ export function ChatPage() {
                   }
                   onImageClick={setLightboxUrl}
                   onToggleBookmark={() => bookmarkMutation.mutate(message.messagePublicId)}
-                  onForward={() => setForwardingMessage(message)}
+                  onForward={chat?.isSecret ? undefined : () => setForwardingMessage(message)}
                   onPin={
                     chat?.type === 'group'
                       ? () => pinMutation.mutate(message.messagePublicId)
@@ -590,35 +653,41 @@ export function ChatPage() {
           </div>
         ) : (
           <div className={styles.composerRow}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              hidden
-              onChange={handleFileSelected}
-              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar,.txt"
-            />
-            <IconButton
-              label={t('chat.attach')}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              <PaperclipIcon />
-            </IconButton>
-            <IconButton label={t('common.location')} onClick={handleSendLocation}>
-              <LocationIcon />
-            </IconButton>
-            <IconButton label={t('common.contact')} onClick={() => setShowContactPicker(true)}>
-              <ContactIcon />
-            </IconButton>
-            <IconButton label={t('poll.create')} onClick={() => setShowPollCreator(true)}>
-              <PollIcon />
-            </IconButton>
-            <IconButton label={t('sticker.tab')} onClick={() => setShowStickerPicker(true)}>
-              <StickerIcon />
-            </IconButton>
+            {!chat?.isSecret ? (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  hidden
+                  onChange={handleFileSelected}
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar,.txt"
+                />
+                <IconButton
+                  label={t('chat.attach')}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  <PaperclipIcon />
+                </IconButton>
+                <IconButton label={t('common.location')} onClick={handleSendLocation}>
+                  <LocationIcon />
+                </IconButton>
+                <IconButton label={t('common.contact')} onClick={() => setShowContactPicker(true)}>
+                  <ContactIcon />
+                </IconButton>
+                <IconButton label={t('poll.create')} onClick={() => setShowPollCreator(true)}>
+                  <PollIcon />
+                </IconButton>
+                <IconButton label={t('sticker.tab')} onClick={() => setShowStickerPicker(true)}>
+                  <StickerIcon />
+                </IconButton>
+              </>
+            ) : null}
             <Input
               className={styles.composerInput}
-              placeholder={t('chat.placeholder')}
+              placeholder={
+                chat?.isSecret ? t('secretChat.composerPlaceholder') : t('chat.placeholder')
+              }
               value={draft}
               onChange={(e) => handleDraftChange(e.target.value)}
               onKeyDown={(e) => {
@@ -630,14 +699,19 @@ export function ChatPage() {
             />
             {draft.trim() ? (
               <>
-                <IconButton label={t('schedule.title')} onClick={() => setShowScheduleModal(true)}>
-                  <ClockIcon size={18} />
-                </IconButton>
+                {!chat?.isSecret ? (
+                  <IconButton
+                    label={t('schedule.title')}
+                    onClick={() => setShowScheduleModal(true)}
+                  >
+                    <ClockIcon size={18} />
+                  </IconButton>
+                ) : null}
                 <Button variant="primary" size="md" type="button" onClick={handleSend}>
                   <SendIcon size={18} />
                 </Button>
               </>
-            ) : (
+            ) : !chat?.isSecret ? (
               <IconButton
                 label={t('chat.voiceMessage')}
                 onClick={() => void voiceRecorder.start()}
@@ -645,7 +719,7 @@ export function ChatPage() {
               >
                 <MicIcon />
               </IconButton>
-            )}
+            ) : null}
           </div>
         )}
       </div>

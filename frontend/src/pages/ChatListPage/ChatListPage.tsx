@@ -5,10 +5,17 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Chat } from '../../entities/chat/model';
 import type { Message } from '../../entities/message/model';
 import { useSessionStore } from '../../entities/user/store';
-import { createDirectChat, getSavedChat, listChats } from '../../features/chats/api';
+import {
+  createDirectChat,
+  createSecretChat,
+  getSavedChat,
+  listChats,
+} from '../../features/chats/api';
 import { listFolders } from '../../features/folders/api';
 import { createGroup } from '../../features/groups/api';
 import { search as searchApi } from '../../features/search/api';
+import { ApiError } from '../../shared/api/client';
+import { ensureIdentityKeyPair } from '../../shared/e2ee/e2ee';
 import { useT, type TranslationKey } from '../../shared/i18n';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Badge } from '../../shared/ui/Badge';
@@ -19,6 +26,7 @@ import {
   BookmarkFilledIcon,
   FolderIcon,
   GearIcon,
+  LockIcon,
   PlusIcon,
   SearchIcon,
 } from '../../shared/ui/icons';
@@ -76,9 +84,11 @@ function ChatRow({ chat }: { chat: Chat }) {
 
   const preview = typing
     ? t('chat.typing')
-    : chat.lastMessage
-      ? previewText(chat.lastMessage, t)
-      : '';
+    : chat.isSecret
+      ? t('secretChat.preview')
+      : chat.lastMessage
+        ? previewText(chat.lastMessage, t)
+        : '';
 
   return (
     <Link
@@ -88,7 +98,10 @@ function ChatRow({ chat }: { chat: Chat }) {
       <Avatar name={chat.title} src={chat.avatarUrl} size={52} online={chat.peerOnline} />
       <div className={styles.rowBody}>
         <div className={styles.rowTop}>
-          <span className={styles.rowTitle}>{chat.title}</span>
+          <span className={styles.rowTitle}>
+            {chat.isSecret ? <LockIcon size={14} className={styles.secretLockIcon} /> : null}
+            {chat.title}
+          </span>
           {chat.lastMessage ? (
             <span className={styles.rowTime}>{formatTime(chat.lastMessage.createdAt)}</span>
           ) : null}
@@ -166,7 +179,7 @@ export function ChatListPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [creating, setCreating] = useState<'none' | 'choose' | 'chat' | 'group'>('none');
+  const [creating, setCreating] = useState<'none' | 'choose' | 'chat' | 'group' | 'secret'>('none');
   const [newChatUsername, setNewChatUsername] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [groupTitle, setGroupTitle] = useState('');
@@ -200,6 +213,27 @@ export function ChatListPage() {
       navigate(`/chat/${chat.chatPublicId}`);
     },
     onError: () => setCreateError('Пользователь не найден'),
+  });
+
+  const createSecretChatMutation = useMutation({
+    mutationFn: async (username: string) => {
+      await ensureIdentityKeyPair(user?.e2eePublicKey ?? null);
+      return createSecretChat(username);
+    },
+    onSuccess: (chat) => {
+      void queryClient.invalidateQueries({ queryKey: ['chats'] });
+      setCreating('none');
+      setNewChatUsername('');
+      setCreateError(null);
+      navigate(`/chat/${chat.chatPublicId}`);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === 'peer_no_e2ee_key') {
+        setCreateError(t('secretChat.peerNoKey'));
+      } else {
+        setCreateError('Пользователь не найден');
+      }
+    },
   });
 
   const createGroupMutation = useMutation({
@@ -289,16 +323,21 @@ export function ChatListPage() {
           <button type="button" onClick={() => setCreating('group')}>
             {t('chatlist.newGroup')}
           </button>
+          <button type="button" onClick={() => setCreating('secret')}>
+            {t('secretChat.new')}
+          </button>
         </div>
       ) : null}
 
-      {creating === 'chat' ? (
+      {creating === 'chat' || creating === 'secret' ? (
         <form
           className={styles.newChatForm}
           onSubmit={(e) => {
             e.preventDefault();
             const username = newChatUsername.trim().replace(/^@/, '');
-            if (username) createChatMutation.mutate(username);
+            if (!username) return;
+            if (creating === 'secret') createSecretChatMutation.mutate(username);
+            else createChatMutation.mutate(username);
           }}
         >
           <Input
@@ -307,6 +346,9 @@ export function ChatListPage() {
             value={newChatUsername}
             onChange={(e) => setNewChatUsername(e.target.value)}
           />
+          {creating === 'secret' ? (
+            <p className={styles.newChatHint}>{t('secretChat.hint')}</p>
+          ) : null}
           {createError ? <p className={styles.newChatError}>{createError}</p> : null}
         </form>
       ) : null}

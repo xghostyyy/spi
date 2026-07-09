@@ -185,4 +185,11 @@ export const en: Record<TranslationKey, string> = {
   'call.log.missed': 'Missed call',
   'call.log.declined': 'Call declined',
   'call.log.canceled': 'Canceled call',
+  'secretChat.new': 'Secret chat',
+  'secretChat.hint': 'Messages are end-to-end encrypted and only available on this device',
+  'secretChat.preview': '🔒 Encrypted message',
+  'secretChat.peerNoKey': "This contact hasn't set up encryption yet",
+  'secretChat.headerHint': 'Secret chat',
+  'secretChat.composerPlaceholder': 'Message (text only)…',
+  'secretChat.decryptError': 'Could not decrypt message',
 };
